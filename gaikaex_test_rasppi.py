@@ -1812,27 +1812,37 @@ def main():
     
     # 3. webdriver-manager を試行（タイムアウト付き）
     if not chromedriver_path:
-        try:
-            import signal
-            
-            def timeout_handler(signum, frame):
-                raise TimeoutError("ChromeDriverManager timeout")
-            
-            # Windowsの場合はタイムアウト処理をスキップ（signalがサポートされていない）
-            if platform.system() != 'Windows':
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(30)  # 30秒タイムアウト
-            
-            print("ChromeDriverManager を試行中...")
-            chromedriver_path = ChromeDriverManager().install()
-            print(f"ChromeDriver path: {chromedriver_path}")
-            
-            if platform.system() != 'Windows':
-                signal.alarm(0)  # タイマーをリセット
-                
-        except (Exception, TimeoutError) as e:
-            print(f"ChromeDriverManager failed: {e}")
+        # ARM (Raspberry Pi) の場合、webdriver-manager が x86_64 用バイナリを取得して
+        # 実行時に Exec format error となることがあるため、自動取得は行わない。
+        arch = platform.machine().lower() if platform.machine() else ''
+        is_arm = any(a in arch for a in ('arm', 'aarch'))
+        if is_arm:
+            print("ARM アーキテクチャが検出されました。webdriver-manager による自動取得をスキップします。")
+            print("Raspberry Pi では以下いずれかの対応を行ってください:")
+            print(" 1) apt 経由で Chromium と chromedriver をインストール: sudo apt update && sudo apt install -y chromium-browser chromium-chromedriver")
+            print(" 2) OS 用にビルド済みの chromedriver (linux-arm / linux-arm64) を入手し、環境変数 CHROMEDRIVER_PATH を設定")
+            print(" 3) 既にシステムにある /usr/bin/chromedriver 等のパスを CHROMEDRIVER_PATH に設定")
             chromedriver_path = None
+        else:
+            try:
+                import signal
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("ChromeDriverManager timeout")
+                # Windowsの場合はタイムアウト処理をスキップ（signalがサポートされていない）
+                if platform.system() != 'Windows':
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(30)  # 30秒タイムアウト
+
+                print("ChromeDriverManager を試行中...")
+                chromedriver_path = ChromeDriverManager().install()
+                print(f"ChromeDriver path: {chromedriver_path}")
+
+                if platform.system() != 'Windows':
+                    signal.alarm(0)  # タイマーをリセット
+
+            except (Exception, TimeoutError) as e:
+                print(f"ChromeDriverManager failed: {e}")
+                chromedriver_path = None
     
     # 4. フォールバック: システムデフォルトパス
     if not chromedriver_path:
