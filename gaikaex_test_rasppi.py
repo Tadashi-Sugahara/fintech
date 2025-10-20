@@ -6,11 +6,175 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
 import platform
 import sys
+import signal
+import atexit
+import subprocess
+import psutil
 
+# グローバルドライバー変数（終了処理用）
+global_driver = None
+
+def cleanup_driver():
+    """プログラム終了時にドライバーをクリーンアップする関数"""
+    global global_driver
+    if global_driver:
+        try:
+            print("\n緊急終了: ブラウザを閉じています...")
+            
+            # 1. 通常の終了処理を試行（短時間制限付き）
+            import threading
+            import time
+            
+            def quit_driver():
+                try:
+                    global_driver.quit()
+                except:
+                    pass
+            
+            # 別スレッドで終了処理を実行（デッドロック防止）
+            quit_thread = threading.Thread(target=quit_driver)
+            quit_thread.daemon = True
+            quit_thread.start()
+            quit_thread.join(timeout=3)  # 3秒でタイムアウト
+            
+            if quit_thread.is_alive():
+                print("通常終了がタイムアウトしました。強制終了を実行します。")
+                force_kill_chrome_processes()
+            else:
+                print("ブラウザが正常に閉じられました。")
+            
+        except Exception as e:
+            print(f"終了処理でエラー: {e}")
+            
+            # 2. 強制終了処理を実行
+            try:
+                print("強制終了処理を実行中...")
+                force_kill_chrome_processes()
+            except Exception as force_e:
+                print(f"強制終了処理でもエラー: {force_e}")
+                
+    # 最終手段：ChromeDriverプロセスのみ終了
+    try:
+        if platform.system() == 'Windows':
+            subprocess.run(['taskkill', '/F', '/IM', 'chromedriver.exe'], 
+                         capture_output=True, timeout=3)
+            print("chromedriver.exeのみを最終終了しました")
+    except:
+        pass
+
+def force_kill_chrome_processes():
+    """ChromeDriverで開いたブラウザのみを強制終了（通常のChromeは残す）"""
+    try:
+        killed_processes = []
+        chrome_driver_pids = set()
+        
+        # まずchromedriver.exeプロセスを見つける
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                proc_name = proc.info['name'].lower() if proc.info['name'] else ''
+                
+                if 'chromedriver' in proc_name:
+                    chrome_driver_pids.add(proc.info['pid'])
+                    try:
+                        proc.kill()
+                        killed_processes.append(f"chromedriver({proc.info['pid']})")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                        
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        # ChromeDriverによって起動されたChromeプロセスのみを特定して終了
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'ppid']):
+            try:
+                proc_name = proc.info['name'].lower() if proc.info['name'] else ''
+                cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
+                
+                # ChromeDriverで起動されたChromeプロセスの特徴を確認
+                if 'chrome.exe' in proc_name and any([
+                    '--test-type' in cmdline,           # テストモードフラグ
+                    '--disable-extensions' in cmdline,  # 拡張機能無効フラグ  
+                    '--disable-dev-shm-usage' in cmdline, # 開発用フラグ
+                    '--no-sandbox' in cmdline,          # サンドボックス無効フラグ
+                    '--remote-debugging-port' in cmdline, # デバッグポート
+                    '--disable-gpu' in cmdline,         # GPU無効フラグ
+                    proc.info['ppid'] in chrome_driver_pids  # chromedriver が親プロセス
+                ]):
+                    try:
+                        proc.terminate()  # 通常終了を試行
+                        proc.wait(timeout=2)  # 2秒待機
+                        killed_processes.append(f"chrome({proc.info['pid']})")
+                    except psutil.TimeoutExpired:
+                        # 2秒で終了しない場合は強制終了
+                        proc.kill()
+                        killed_processes.append(f"chrome({proc.info['pid']}) [FORCE]")
+                        
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        if killed_processes:
+            print(f"ChromeDriverのプロセスのみ終了: {', '.join(killed_processes)}")
+        else:
+            print("ChromeDriverプロセスが見つかりませんでした")
+            
+    except Exception as e:
+        print(f"プロセス特定終了でエラー: {e}")
+        
+        # フォールバック: chromedriver.exeのみ終了
+        try:
+            if platform.system() == 'Windows':
+                subprocess.run(['taskkill', '/F', '/IM', 'chromedriver.exe'], 
+                             capture_output=True, timeout=3)
+                print("chromedriver.exeのみ終了しました")
+            else:
+                subprocess.run(['pkill', '-f', 'chromedriver'], 
+                             capture_output=True, timeout=3)
+                print("chromedriverプロセスのみ終了しました")
+        except Exception as cmd_e:
+            print(f"chromedriver終了でもエラー: {cmd_e}")
+
+def signal_handler(signum, frame):
+    """シグナルハンドラー（Ctrl+C処理）"""
+    print(f"\nシグナル {signum} を受信しました。プログラムを強制終了します。")
+    
+    # まず通常のクリーンアップを試行
+    cleanup_driver()
+    
+    # 少し待ってから強制終了も実行
+    try:
+        time.sleep(1)
+        force_kill_chrome_processes()
+    except:
+        pass
+    
+    # 最終手段: chromedriver.exeのみを確実に終了
+    try:
+        import subprocess
+        if platform.system() == 'Windows':
+            subprocess.run(['taskkill', '/F', '/IM', 'chromedriver.exe'], 
+                         capture_output=True, timeout=5)
+            print("chromedriver.exeのみを終了しました。")
+    except:
+        pass
+    
+    print("プログラムを終了します。")
+    os._exit(0)  # sys.exit()の代わりにより強力な終了を使用
+
+# シグナルハンドラーの登録（Windowsでサポートされているもののみ）
+try:
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, signal_handler)  # 終了シグナル
+except Exception as e:
+    print(f"シグナルハンドラーの登録に失敗: {e}")
+
+# プログラム終了時の自動クリーンアップ
+atexit.register(cleanup_driver)
 
 # ログイン処理
 def login_gaikaex(driver, login_id, password):
@@ -147,7 +311,143 @@ def monitor_usdjpy_rate(driver):
         print("終了します。ブラウザを閉じます")
         driver.quit()
 
+def navigate_to_new_order(driver):
+    """
+    外貨exのメイン画面から「新規注文」メニューに移動する関数
+    """
+
+    try:
+        print("新規注文メニューに移動しています...")
+        
+        # 1. デフォルトコンテンツに戻る
+        driver.switch_to.default_content()
+        time.sleep(0.5)
+        
+        # 2. mainMenuフレームに切り替え
+        try:
+            main_menu_frame = driver.find_element(By.CSS_SELECTOR, "iframe#mainMenu, iframe[name='mainMenu']")
+            driver.switch_to.frame(main_menu_frame)
+            #print("mainMenuフレームに切り替えました")
+        except Exception as e:
+            print(f"mainMenuフレームの切り替えに失敗: {e}")
+            return False
+        
+        # 3. 「取引」メニューが開いているか確認し、必要に応じて開く
+        try:
+            # h3#1 が「取引」メニューのヘッダー
+            trade_menu_header = driver.find_element(By.ID, "1")
+            
+            # selectedクラスがない場合はクリックしてメニューを開く
+            if "selected" not in trade_menu_header.get_attribute("class"):
+                print("「取引」メニューを開きます...")
+                trade_menu_header.click()
+                time.sleep(0.1)
+            else:
+                print("「取引」メニューは既に開いています")
+                
+        except Exception as e:
+            print(f"「取引」メニューの操作に失敗: {e}")
+            return False
+        
+        # 4. 「新規注文」リンクをクリック
+        try:
+            # menu01内の「新規注文」リンクを探す
+            new_order_link = driver.find_element(By.XPATH, "//ul[@id='menu01']//a[contains(text(), '新規注文')]")
+            
+            if new_order_link.is_displayed():
+                #print("「新規注文」リンクをクリックします...")
+                new_order_link.click()
+                time.sleep(0.2)  # ページ遷移を待つ
+                print("「新規注文」画面への移動が完了しました")
+                return True
+            else:
+                print("「新規注文」リンクが表示されていません")
+                return False
+                
+        except Exception as e:
+            print(f"「新規注文」リンクのクリックに失敗: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"新規注文メニューへの移動でエラーが発生: {e}")
+        return False
+    
+    finally:
+        # デフォルトコンテンツに戻る
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
+def get_page_source_info(driver):
+    """
+    現在のページソースとフレーム情報を表示するデバッグ用関数
+    """
+    try:
+        print("\n=== ページ情報の取得 ===")
+        
+        # メインページのタイトルと基本情報
+        driver.switch_to.default_content()
+        #print(f"メインページタイトル: {driver.title}")
+        #print(f"現在のURL: {driver.current_url}")
+        
+        # iframeの一覧を取得
+        iframes = driver.find_elements(By.TAG_NAME, "iframe")
+        #print(f"iframe数: {len(iframes)}")
+        
+        for i, iframe in enumerate(iframes):
+            iframe_id = iframe.get_attribute("id") or "no-id"
+            iframe_name = iframe.get_attribute("name") or "no-name"
+            iframe_src = iframe.get_attribute("src") or "no-src"
+            #print(f"  iframe[{i}]: id={iframe_id}, name={iframe_name}, src={iframe_src[:100]}...")
+        
+        # mainMenuフレーム内の情報を確認
+        try:
+            main_menu_frame = driver.find_element(By.CSS_SELECTOR, "iframe#mainMenu, iframe[name='mainMenu']")
+            driver.switch_to.frame(main_menu_frame)
+            
+            # メニュー項目を取得
+            menu_headers = driver.find_elements(By.TAG_NAME, "h3")
+            #print(f"\nメニューヘッダー数: {len(menu_headers)}")
+            
+            for header in menu_headers:
+                header_id = header.get_attribute("id")
+                header_text = header.text
+                header_class = header.get_attribute("class") or "no-class"
+                #print(f"  メニュー[{header_id}]: '{header_text}' (class: {header_class})")
+                
+                # 対応するメニュー項目を表示
+                try:
+                    menu_ul = driver.find_element(By.ID, f"menu0{header_id}")
+                    menu_items = menu_ul.find_elements(By.TAG_NAME, "a")
+                    for item in menu_items:
+                        item_text = item.text
+                        onclick = item.get_attribute("onclick") or "no-onclick"
+                        #print(f"    - {item_text}")
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            #print(f"mainMenuフレームの情報取得に失敗: {e}")
+            pass
+        
+        print("")
+        print("=========================\n")
+
+        
+    except Exception as e:
+        print(f"ページ情報の取得でエラーが発生: {e}")
+    
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
 def main():
+    global global_driver
     login_id = "3006316"
     password = "Sutada53"
     options = webdriver.ChromeOptions()
@@ -161,49 +461,178 @@ def main():
             options.binary_location = '/usr/bin/chromium-browser'
         # Windows は通常 binary_location を指定しない（chromedriver が自動でChromeを探す）
     options.add_argument('--no-sandbox')
-    options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1280,800')
-    # chromedriver のパスは環境変数で指定可能。未指定時は OS によるデフォルトを使用
+    options.add_argument('--disable-extensions')  # 拡張機能を無効にする
+    options.add_argument('--test-type')  # テストモードフラグ（ChromeDriverプロセス識別用）
+    
+    # 一時プロファイル用のディレクトリを作成
+    import tempfile
+    temp_profile_dir = os.path.join(tempfile.gettempdir(), 'chrome_automation_profile')
+    options.add_argument(f'--user-data-dir={temp_profile_dir}')
+    # ChromeDriverの設定（安定性を優先）
+    service = None
+    chromedriver_path = None
+    
+    # 1. 環境変数で指定されたパスを最初にチェック
     chromedriver_path = os.environ.get('CHROMEDRIVER_PATH')
+    
+    # 2. 既存のwebdriver-manager キャッシュをチェック
+    if not chromedriver_path:
+        try:
+            import glob
+            # webdriver-manager が通常使用するキャッシュ場所をチェック
+            wdm_cache_pattern = os.path.expanduser("~/.wdm/drivers/chromedriver/*/chromedriver*")
+            cached_paths = glob.glob(wdm_cache_pattern)
+            
+            if cached_paths:
+                # 最新のキャッシュされたファイルを使用
+                chromedriver_path = max(cached_paths, key=os.path.getmtime)
+                print(f"Using cached ChromeDriver: {chromedriver_path}")
+            
+        except Exception as e:
+            print(f"Cache check error: {e}")
+    
+    # 3. webdriver-manager を試行（タイムアウト付き）
+    if not chromedriver_path:
+        try:
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("ChromeDriverManager timeout")
+            
+            # Windowsの場合はタイムアウト処理をスキップ（signalがサポートされていない）
+            if platform.system() != 'Windows':
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(30)  # 30秒タイムアウト
+            
+            print("ChromeDriverManager を試行中...")
+            chromedriver_path = ChromeDriverManager().install()
+            print(f"ChromeDriver path: {chromedriver_path}")
+            
+            if platform.system() != 'Windows':
+                signal.alarm(0)  # タイマーをリセット
+                
+        except (Exception, TimeoutError) as e:
+            print(f"ChromeDriverManager failed: {e}")
+            chromedriver_path = None
+    
+    # 4. フォールバック: システムデフォルトパス
     if not chromedriver_path:
         if platform.system() == 'Windows':
-            # Windows のデフォルト想定パス（必要に応じて環境変数で上書きしてください）
-            chromedriver_path = r'C:\chromedriver\chromedriver.exe'
+            # Windowsの一般的なパス
+            potential_paths = [
+                r'C:\chromedriver\chromedriver.exe',
+                r'C:\Program Files\ChromeDriver\chromedriver.exe',
+                r'C:\Windows\System32\chromedriver.exe'
+            ]
         else:
-            # Linux / Raspberry Pi
-            # Raspberry Pi は arm 系なので通常 /usr/bin/chromedriver を利用
-            chromedriver_path = '/usr/bin/chromedriver'
-    service = Service(chromedriver_path)
+            # Linux/Macの一般的なパス
+            potential_paths = [
+                '/usr/bin/chromedriver',
+                '/usr/local/bin/chromedriver',
+                '/opt/chromedriver'
+            ]
+        
+        for path in potential_paths:
+            if os.path.exists(path):
+                chromedriver_path = path
+                print(f"Using system ChromeDriver: {chromedriver_path}")
+                break
+    
+    # 5. サービス作成
+    if chromedriver_path and os.path.exists(chromedriver_path):
+        service = Service(chromedriver_path)
+    else:
+        # 最終手段: Seleniumにシステムパスから自動検出させる
+        print("ChromeDriver path not found, letting Selenium auto-detect...")
+        service = Service()
     driver = webdriver.Chrome(service=service, options=options)
+    
+    # グローバル変数に設定（終了処理用）
+    global_driver = driver
+    
     try:
         login_gaikaex(driver, login_id, password)
-        #monitor_usdjpy_rate(driver)
-        print('ログイン完了。ブラウザを開いたまま待機します。終了するには Ctrl+C を押してください。')
-        try:
-            while True:
-                time.sleep(0.1)
-                # 新規注文画面の初期メッセージを表示しないにチェックを入れたら、Enterを押すようにメッセージを表示する。
-                print('新規注文画面の初期メッセージを表示しないにチェックを入れたら、Enterを押してください。')
-                input()
+        # ログイン後の処理
+        print('ログイン完了。')
+        
+        print("「新規注文」- 「リアルタイム」を開いたときに表示される、「確認」ダイアログを手動で閉じたら、Enterを押してください。")
+        input("Enterキーを押して続行...")   
 
+
+        # ページ情報を表示（デバッグ用）
+        get_page_source_info(driver)
+        
+        # 新規注文画面に移動
+        if navigate_to_new_order(driver):
+            print("✅ 新規注文画面への移動が成功しました")
+            
+            # 少し待ってから新規注文画面の状況を確認
+            time.sleep(3)
+            
+            try:
+                # main_v2_dフレームに切り替えて内容確認
+                driver.switch_to.default_content()
+                main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
+                driver.switch_to.frame(main_frame)
                 
-        except KeyboardInterrupt:
-            print('KeyboardInterrupt を受け取りました。ブラウザを閉じます。')
-            driver.quit()
+                print(f"新規注文画面のタイトル: {driver.title}")
+                print("新規注文画面が表示されています。確認ダイアログが出た場合は手動で処理してください。")
+                
+                # ページソースをチェックして確認ダイアログの有無を確認
+                page_source = driver.page_source
+                if "次回" in page_source and ("表示しない" in page_source or "チェック" in page_source):
+                    print("⚠️  確認ダイアログが表示されている可能性があります")
+                    print("    - 「次回からこの情報を表示しない」にチェックを入れてください")
+                    print("    - 「OK」ボタンをクリックしてください")
+                
+            except Exception as e:
+                print(f"新規注文画面の確認でエラー: {e}")
+            
+        else:
+            print("❌ 新規注文画面への移動に失敗しました")
+        
+        # ブラウザを開いたまま待機
+        print('\nブラウザを開いたまま待機します。終了するには Ctrl+C を押してください。')
+        while True:
+            try:
+                time.sleep(1)
+            except KeyboardInterrupt:
+                print('\nKeyboardInterrupt を受け取りました。ブラウザを閉じます。')
+                break
+                
+    except KeyboardInterrupt:
+        print('\nKeyboardInterrupt を受け取りました。ブラウザを閉じます。')
     except Exception as e:
         print("エラー:", e)
         print('例外発生時もブラウザを開いたままにします。終了するには Ctrl+C を押してください。')
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print('KeyboardInterrupt を受け取りました。ブラウザを閉じます。')
+        while True:
             try:
-                driver.quit()
-            except Exception:
-                pass
+                time.sleep(1)
+            except KeyboardInterrupt:
+                print('\nKeyboardInterrupt を受け取りました。ブラウザを閉じます。')
+                break
+    finally:
+        # 確実にブラウザを閉じる
+        try:
+            print("ブラウザを閉じています...")
+            driver.quit()
+            print("ブラウザが正常に閉じられました。")
+        except Exception as e:
+            print(f"通常の終了処理でエラー: {e}")
+            # 強制終了処理を実行
+            try:
+                print("強制終了処理を実行中...")
+                force_kill_chrome_processes()
+            except Exception as force_e:
+                print(f"強制終了処理でもエラー: {force_e}")
+        
+        # グローバルドライバーもクリア
+        global_driver = None
+        
+        print("プログラムを終了します。")
 
 if __name__ == "__main__":
     main()
