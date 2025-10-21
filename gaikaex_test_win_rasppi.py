@@ -17,6 +17,8 @@ import atexit
 import subprocess
 import psutil
 
+##
+
 # グローバルドライバー変数（終了処理用）
 global_driver = None
 
