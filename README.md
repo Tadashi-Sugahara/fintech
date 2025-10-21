@@ -1,1 +1,1 @@
-# fx_automation
+# Python source code related to fintech
