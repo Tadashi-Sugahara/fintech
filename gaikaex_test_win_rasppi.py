@@ -178,7 +178,11 @@ def monitor_usdjpy_rate(driver):
         print("終了します。ブラウザを閉じます")
         driver.quit()
 
+<<<<<<< HEAD
 def order_test(driver):
+=======
+def order_test():
+>>>>>>> 6ba16a8da5025f08998ef85734a615fecbfdf5b3
      # リアルタイム注文のテスト（デフォルト値でテスト）
     print("\n--- リアルタイム注文 速度比較テスト ---")
             
@@ -542,12 +546,17 @@ def main():
             #order_test()
 
             print("\n--- 実際の注文実行（高速版使用、execute_order=True）---")
+<<<<<<< HEAD
 
             # Realtime注文の実行（超高速)
             # operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=True)  # 高速版を使用
             
             # IFO注文の実行例 
             operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
+=======
+            operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=True)  # 高速版を使用
+            
+>>>>>>> 6ba16a8da5025f08998ef85734a615fecbfdf5b3
     
             try:
                 # main_v2_dフレームに切り替えて内容確認
