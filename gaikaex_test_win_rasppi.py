@@ -14,6 +14,8 @@ from login_process import login_gaikaex
 from place_order import (
     navigate_to_new_order,
     operate_realtime_order,
+    operate_realtime_order_fast,
+    operate_realtime_order_ultra_fast,
     operate_limit_order, 
     operate_ifd_order,
     operate_oco_order,
@@ -152,6 +154,38 @@ def monitor_usdjpy_rate(driver):
     except KeyboardInterrupt:
         print("終了します。ブラウザを閉じます")
         driver.quit()
+
+def order_test():
+     # リアルタイム注文のテスト（デフォルト値でテスト）
+    print("\n--- リアルタイム注文 速度比較テスト ---")
+            
+    # 通常版のテスト（execute_order=False）
+    print("\n🔄 通常版実行テスト:")
+    start_time = time.time()
+    operate_realtime_order(driver, "USDJPY", 20000, "sell", execute_order=False)
+    normal_time = time.time() - start_time
+    print(f"⏱️ 通常版実行時間: {normal_time:.3f}秒")
+            
+    # 高速版のテスト（execute_order=False）
+    print("\n⚡ 高速版実行テスト:")
+    start_time = time.time()
+    operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=False)
+    fast_time = time.time() - start_time
+    print(f"⏱️ 高速版実行時間: {fast_time:.3f}秒")
+            
+    # 超高速版のテスト（execute_order=False）
+    print("\n🚀 超高速版実行テスト:")
+    start_time = time.time()
+    operate_realtime_order_ultra_fast(driver, "USDJPY", 20000, "sell", execute_order=False)
+    ultra_fast_time = time.time() - start_time
+    print(f"⏱️ 超高速版実行時間: {ultra_fast_time:.3f}秒")
+            
+    # 速度改善の結果表示
+    print(f"\n📊 速度改善結果:")
+    print(f"   通常版: {normal_time:.3f}秒")
+    print(f"   高速版: {fast_time:.3f}秒 ({((normal_time - fast_time) / normal_time * 100):.1f}% 改善)")
+    print(f"   超高速版: {ultra_fast_time:.3f}秒 ({((normal_time - ultra_fast_time) / normal_time * 100):.1f}% 改善)")
+            
 
 
 def main():
@@ -329,19 +363,13 @@ def main():
             # リアルタイム注文画面の要素を詳細分析
             analyze_form_elements(driver, "realtime")
             
-            #print("\n=== リアルタイム注文操作のテスト ===")
-            
-            # リアルタイム注文のテスト（デフォルト値でテスト）
-            print("\n--- リアルタイム注文（execute_order=True）のテスト ---")
-            operate_realtime_order(driver, "USDJPY", 20000, "sell", execute_order=True)  # 明示的にTrue指定
-            
-            # 利用可能な注文タイプを表示
-            #display_available_order_types()
-            
-            # 各注文タイプの操作デモ
-            #demonstrate_order_operations(driver)
-            
+            #print("\n=== リアルタイム注文操作のテスト ===") 
+            #order_test()
 
+            print("\n--- 実際の注文実行（高速版使用、execute_order=True）---")
+            operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=True)  # 高速版を使用
+            
+    
             try:
                 # main_v2_dフレームに切り替えて内容確認
                 driver.switch_to.default_content()

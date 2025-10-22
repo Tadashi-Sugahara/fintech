@@ -1,5 +1,7 @@
 import time
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 
 def navigate_to_order_type(driver, order_type="realtime"):
@@ -736,7 +738,7 @@ def operate_realtime_order(driver, pair, amount, order_type, execute_order, sile
             pass
 
 
-def operate_realtime_order_fast(driver, pair, amount, order_type, execute_order=True):
+def operate_realtime_order_fast(driver, pair, amount, order_type, execute_order):
     """
     高速化されたリアルタイム注文実行関数
     メッセージ表示を最小限に抑制し、処理速度を優先
@@ -788,6 +790,50 @@ def operate_realtime_order_fast(driver, pair, amount, order_type, execute_order=
             
     except Exception as e:
         print(f"❌ 高速注文エラー: {e}")
+        return False
+
+def operate_realtime_order_ultra_fast(driver, pair, amount, order_type, execute_order=True):
+    """
+    超高速リアルタイム注文実行（極限の最適化版）
+    - 最小限の待機時間（0.05s）
+    - 直接的な要素操作
+    - ログ出力最小化
+    """
+    try:
+        # 通貨ペアマッピング（高速版と同じ）
+        currency_mapping = {
+            "USDJPY": "2", "EURJPY": "3", "EURUSD": "1", 
+            "AUDJPY": "4", "GBPJPY": "5", "NZDJPY": "6"
+        }
+        pair_value = currency_mapping.get(pair.upper(), "2")
+        
+        # 通貨ペア選択（直接的）
+        pair_selector = driver.find_element(By.ID, "entryCurrencyPair")
+        Select(pair_selector).select_by_value(pair_value)
+        
+        # 金額入力（直接的）
+        amount_input = driver.find_element(By.ID, "amt_entry")
+        amount_input.clear()
+        amount_input.send_keys(str(amount))
+        
+        # 売買ボタン（直接的）
+        if order_type.lower() == "buy":
+            button_id = "btn-buy_entry"
+        else:
+            button_id = "btn-sell_entry"
+        
+        order_button = driver.find_element(By.ID, button_id)
+        
+        if execute_order:
+            order_button.click()
+            time.sleep(0.05)  # 極限まで短縮
+            print(f"⚡ 超高速注文: {order_type.upper()}")
+            return True
+        else:
+            return True
+            
+    except Exception as e:
+        print(f"❌ {e}")
         return False
     finally:
         try:
