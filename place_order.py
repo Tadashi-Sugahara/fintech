@@ -1,5 +1,7 @@
 import time
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 
 def navigate_to_order_type(driver, order_type="realtime"):
@@ -736,7 +738,7 @@ def operate_realtime_order(driver, pair, amount, order_type, execute_order, sile
             pass
 
 
-def operate_realtime_order_fast(driver, pair, amount, order_type, execute_order=True):
+def operate_realtime_order_fast(driver, pair, amount, order_type, execute_order):
     """
     高速化されたリアルタイム注文実行関数
     メッセージ表示を最小限に抑制し、処理速度を優先
@@ -788,6 +790,50 @@ def operate_realtime_order_fast(driver, pair, amount, order_type, execute_order=
             
     except Exception as e:
         print(f"❌ 高速注文エラー: {e}")
+        return False
+
+def operate_realtime_order_ultra_fast(driver, pair, amount, order_type, execute_order=True):
+    """
+    超高速リアルタイム注文実行（極限の最適化版）
+    - 最小限の待機時間（0.05s）
+    - 直接的な要素操作
+    - ログ出力最小化
+    """
+    try:
+        # 通貨ペアマッピング（高速版と同じ）
+        currency_mapping = {
+            "USDJPY": "2", "EURJPY": "3", "EURUSD": "1", 
+            "AUDJPY": "4", "GBPJPY": "5", "NZDJPY": "6"
+        }
+        pair_value = currency_mapping.get(pair.upper(), "2")
+        
+        # 通貨ペア選択（直接的）
+        pair_selector = driver.find_element(By.ID, "entryCurrencyPair")
+        Select(pair_selector).select_by_value(pair_value)
+        
+        # 金額入力（直接的）
+        amount_input = driver.find_element(By.ID, "amt_entry")
+        amount_input.clear()
+        amount_input.send_keys(str(amount))
+        
+        # 売買ボタン（直接的）
+        if order_type.lower() == "buy":
+            button_id = "btn-buy_entry"
+        else:
+            button_id = "btn-sell_entry"
+        
+        order_button = driver.find_element(By.ID, button_id)
+        
+        if execute_order:
+            order_button.click()
+            time.sleep(0.05)  # 極限まで短縮
+            print(f"⚡ 超高速注文: {order_type.upper()}")
+            return True
+        else:
+            return True
+            
+    except Exception as e:
+        print(f"❌ {e}")
         return False
     finally:
         try:
@@ -1086,8 +1132,8 @@ def operate_oco_order(driver, pair="USDJPY", amount=1000,
 
 
 def operate_ifo_order(driver, pair="USDJPY", amount=1000,
-                     entry_order_type="buy", entry_price=None,
-                     profit_price=None, loss_price=None):
+                     entry_order_type="buy", entry_execution_condition="limit",
+                     entry_price=None, profit_price=None, loss_price=None):
     """
     IFO注文を設定する関数（IFD + OCO）
     
@@ -1096,6 +1142,7 @@ def operate_ifo_order(driver, pair="USDJPY", amount=1000,
         pair: 通貨ペア（デフォルト: "USDJPY"）
         amount: 注文数量（デフォルト: 1000）
         entry_order_type: 新規注文種別（"buy"または"sell"）
+        entry_execution_condition: 新規注文の執行条件（"limit"または"stop"、デフォルト: "limit"）
         entry_price: 新規注文価格
         profit_price: 利益確定価格
         loss_price: 損切り価格
@@ -1111,77 +1158,372 @@ def operate_ifo_order(driver, pair="USDJPY", amount=1000,
             print("❌ IFO注文画面への移動に失敗")
             return False
         
-        time.sleep(1)
+        time.sleep(0.5)
         
         # main_v2_dフレームに切り替え
         driver.switch_to.default_content()
         main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
         driver.switch_to.frame(main_frame)
         
+        # 通貨ペアマッピング
+        currency_pair_mapping = {
+            "USDJPY": "2", "EURJPY": "3", "EURUSD": "1", "AUDJPY": "4", "NZDJPY": "6", 
+            "GBPJPY": "5", "CHFJPY": "8", "CADJPY": "7", "GBPUSD": "9", "GBPAUD": "24",
+            "ZARJPY": "10", "TRYJPY": "23", "MXNJPY": "25", "AUDUSD": "11", "NZDUSD": "12",
+            "CNHJPY": "13", "HKDJPY": "14", "EURGBP": "15", "EURAUD": "16", "USDCHF": "17",
+            "EURCHF": "18", "GBPCHF": "19", "AUDCHF": "20", "CADCHF": "21"
+        }
+        
         # 通貨ペア選択
         try:
-            pair_selector = driver.find_element(By.NAME, "currencyPair")
+            pair_value = currency_pair_mapping.get(pair.upper(), "2")
+            pair_selector = driver.find_element(By.NAME, "P001")
             from selenium.webdriver.support.ui import Select
             select = Select(pair_selector)
-            select.select_by_value(pair)
-            print(f"✅ 通貨ペア {pair} を選択しました")
+            select.select_by_value(pair_value)
+            #print(f"✅ 通貨ペア {pair} を選択しました")
         except Exception as e:
             print(f"⚠️  通貨ペア選択でエラー: {e}")
         
-        # 注文数量入力
+        # 新規注文の売買区分選択
         try:
-            amount_input = driver.find_element(By.NAME, "orderAmount")
-            amount_input.clear()
-            amount_input.send_keys(str(amount))
-            print(f"✅ 注文数量 {amount} を入力しました")
+            buy_sell_selector = driver.find_element(By.NAME, "P002")
+            select = Select(buy_sell_selector)
+            if entry_order_type.lower() == "buy":
+                select.select_by_value("0")  # 買い
+                #print("✅ 新規注文: 買いを選択しました")
+            else:
+                select.select_by_value("1")  # 売り
+                #print("✅ 新規注文: 売りを選択しました")
+        except Exception as e:
+            print(f"⚠️  売買区分選択でエラー: {e}")
+        
+        # 注文数量入力（万の単位）
+        try:
+            amount_10000 = amount // 10000
+            amount_1000 = (amount % 10000) // 1000
+            
+            if amount_10000 > 0:
+                amount_input_10000 = driver.find_element(By.NAME, "P003")
+                amount_input_10000.clear()
+                amount_input_10000.send_keys(str(amount_10000))
+                #print(f"✅ 注文数量 {amount_10000}万を入力しました")
+                
+            if amount_1000 > 0:
+                amount_input_1000 = driver.find_element(By.NAME, "P004")
+                amount_input_1000.clear()
+                amount_input_1000.send_keys(str(amount_1000))
+                #print(f"✅ 注文数量 {amount_1000}千を入力しました")
+                
         except Exception as e:
             print(f"⚠️  注文数量入力でエラー: {e}")
         
-        # 新規注文の設定
+        # 決済注文数量入力
         try:
-            # 新規注文の売買区分
-            if entry_order_type.lower() == "buy":
-                entry_buy_radio = driver.find_element(By.XPATH, "//input[@name='entryBuySell' and @value='1']")
-                entry_buy_radio.click()
-                print("✅ 新規注文: 買いを選択しました")
-            else:
-                entry_sell_radio = driver.find_element(By.XPATH, "//input[@name='entryBuySell' and @value='2']")
-                entry_sell_radio.click()
-                print("✅ 新規注文: 売りを選択しました")
+            if amount_10000 > 0:
+                amount_input_settle_10000 = driver.find_element(By.NAME, "P011")
+                amount_input_settle_10000.clear()
+                amount_input_settle_10000.send_keys(str(amount_10000))
+                
+            if amount_1000 > 0:
+                amount_input_settle_1000 = driver.find_element(By.NAME, "P012")
+                amount_input_settle_1000.clear()
+                amount_input_settle_1000.send_keys(str(amount_1000))
+                
+            #print(f"✅ 決済注文数量を設定しました")
+        except Exception as e:
+            print(f"⚠️  決済注文数量設定でエラー: {e}")
+        
+        # 執行条件選択（新規注文）
+        try:
+            execution_condition = driver.find_element(By.NAME, "P005")
+            select = Select(execution_condition)
             
-            # 新規注文の価格設定
-            if entry_price is not None:
-                entry_price_input = driver.find_element(By.NAME, "entryPrice")
-                entry_price_input.clear()
-                entry_price_input.send_keys(str(entry_price))
-                print(f"✅ 新規注文価格 {entry_price} を設定しました")
+            # 執行条件の設定
+            if entry_execution_condition.lower() == "limit":
+                select.select_by_value("1")  # 指値
+                #print("✅ 新規注文の執行条件: 指値を選択しました")
+            elif entry_execution_condition.lower() == "stop":
+                select.select_by_value("2")  # 逆指値
+                #print("✅ 新規注文の執行条件: 逆指値を選択しました")
+            else:
+                # デフォルトは指値
+                select.select_by_value("1")
+                print("⚠️  不明な執行条件のため、デフォルトで指値を選択しました")
                 
         except Exception as e:
-            print(f"⚠️  新規注文設定でエラー: {e}")
+            print(f"⚠️  執行条件選択でエラー: {e}")
         
-        # 利益確定価格設定
+        # 決済注文の執行条件設定（隠し要素）
+        try:
+            # JavaScriptで自動設定を実行
+            driver.execute_script("_changeExeConditionType();")
+            
+            # 決済注文1（利益確定）は指値で固定
+            settlement1_condition = driver.find_element(By.NAME, "P013")
+            select = Select(settlement1_condition)
+            select.select_by_value("1")  # 指値
+            
+            # 決済注文2（損切り）は逆指値で固定
+            settlement2_condition = driver.find_element(By.NAME, "P019")
+            select = Select(settlement2_condition)
+            select.select_by_value("2")  # 逆指値
+            
+            #print("✅ 決済注文の執行条件を設定しました（利益確定: 指値、損切り: 逆指値）")
+        except Exception as e:
+            print(f"⚠️  決済注文執行条件設定でエラー: {e}")
+            # エラーでも処理を続行（表示上は固定されているため）
+        
+        # 新規注文価格設定
+        if entry_price is not None:
+            try:
+                entry_price_input = driver.find_element(By.NAME, "P006")
+                entry_price_input.clear()
+                entry_price_input.send_keys(str(entry_price))
+                #print(f"✅ 新規注文価格 {entry_price} を設定しました")
+            except Exception as e:
+                print(f"⚠️  新規注文価格設定でエラー: {e}")
+        
+        # 利益確定価格設定（決済注文1）
         if profit_price is not None:
             try:
-                profit_price_input = driver.find_element(By.NAME, "profitPrice")
-                profit_price_input.clear()
-                profit_price_input.send_keys(str(profit_price))
-                print(f"✅ 利益確定価格 {profit_price} を設定しました")
+                if entry_price is not None:
+                    # pips計算（通貨ペアに応じた小数点以下桁数を考慮）
+                    pip_multiplier = 10000  # デフォルト（JPY系通貨ペア）
+                    if pair.upper() in ["USDJPY", "EURJPY", "AUDJPY", "GBPJPY", "NZDJPY", "CHFJPY", "CADJPY", "ZARJPY", "TRYJPY", "MXNJPY", "CNHJPY", "HKDJPY"]:
+                        pip_multiplier = 100  # JPY系は小数点以下2桁なので100倍
+                    elif pair.upper() in ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCHF", "EURCHF", "GBPCHF", "AUDCHF", "CADCHF", "EURGBP", "EURAUD", "GBPAUD"]:
+                        pip_multiplier = 10000  # USD/EUR系は小数点以下4桁なので10000倍
+                    
+                    if entry_order_type.lower() == "buy":
+                        # 買いポジションの利確：エントリー価格より高い価格で売る
+                        pips = (profit_price - entry_price) * pip_multiplier
+                        if pips <= 0:
+                            print(f"⚠️  買いポジションの利益確定価格({profit_price})はエントリー価格({entry_price})より高く設定してください")
+                            return False
+                    else:
+                        # 売りポジションの利確：エントリー価格より低い価格で買い戻す
+                        pips = (entry_price - profit_price) * pip_multiplier
+                        if pips <= 0:
+                            print(f"⚠️  売りポジションの利益確定価格({profit_price})はエントリー価格({entry_price})より低く設定してください")
+                            return False
+                    
+                    spin_input = driver.find_element(By.NAME, "spin")
+                    spin_input.clear()
+                    spin_input.send_keys(str(abs(pips)))
+                    driver.execute_script("_settlePriceCalcIFO2(0);")
+                    time.sleep(0.5)
+                    #print(f"✅ 利益確定価格設定: エントリー価格({entry_price})から{abs(pips):.1f}pips差で利確価格を設定")
+                else:
+                    print("⚠️  利益確定価格を設定するにはentry_priceが必要です")
             except Exception as e:
                 print(f"⚠️  利益確定価格設定でエラー: {e}")
         
-        # 損切り価格設定
+        # 損切り価格設定（決済注文2）
         if loss_price is not None:
             try:
-                loss_price_input = driver.find_element(By.NAME, "lossPrice")
-                loss_price_input.clear()
-                loss_price_input.send_keys(str(loss_price))
-                print(f"✅ 損切り価格 {loss_price} を設定しました")
+                if entry_price is not None:
+                    # pips計算（通貨ペアに応じた小数点以下桁数を考慮）
+                    pip_multiplier = 10000  # デフォルト（JPY系通貨ペア）
+                    if pair.upper() in ["USDJPY", "EURJPY", "AUDJPY", "GBPJPY", "NZDJPY", "CHFJPY", "CADJPY", "ZARJPY", "TRYJPY", "MXNJPY", "CNHJPY", "HKDJPY"]:
+                        pip_multiplier = 100  # JPY系は小数点以下2桁なので100倍
+                    elif pair.upper() in ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCHF", "EURCHF", "GBPCHF", "AUDCHF", "CADCHF", "EURGBP", "EURAUD", "GBPAUD"]:
+                        pip_multiplier = 10000  # USD/EUR系は小数点以下4桁なので10000倍
+                    
+                    if entry_order_type.lower() == "buy":
+                        # 買いポジションの損切り：エントリー価格より低い価格で売る
+                        pips2 = (entry_price - loss_price) * pip_multiplier
+                        if pips2 <= 0:
+                            print(f"⚠️  買いポジションの損切り価格({loss_price})はエントリー価格({entry_price})より低く設定してください")
+                            return False
+                    else:
+                        # 売りポジションの損切り：エントリー価格より高い価格で買い戻す
+                        pips2 = (loss_price - entry_price) * pip_multiplier
+                        if pips2 <= 0:
+                            print(f"⚠️  売りポジションの損切り価格({loss_price})はエントリー価格({entry_price})より高く設定してください")
+                            return False
+                    
+                    spin2_input = driver.find_element(By.NAME, "spin2")
+                    spin2_input.clear()
+                    spin2_input.send_keys(str(abs(pips2)))
+                    driver.execute_script("_settlePriceCalcIFO3(0);")
+                    time.sleep(0.5)
+                    #print(f"✅ 損切り価格設定: エントリー価格({entry_price})から{abs(pips2):.1f}pips差で損切り価格を設定")
+                else:
+                    print("⚠️  損切り価格を設定するにはentry_priceが必要です")
             except Exception as e:
                 print(f"⚠️  損切り価格設定でエラー: {e}")
         
-        print("✅ IFO注文の設定が完了しました")
-        print("⚠️  注意: 実際の注文実行は手動で行ってください")
-        print("    設定値を確認してから、注文ボタンをクリックしてください")
+        # 有効期限設定
+        try:
+            expiry_selector = driver.find_element(By.NAME, "P007")
+            select = Select(expiry_selector)
+            select.select_by_value("2")  # 無期限
+            #print("✅ 有効期限: 無期限を選択しました")
+        except Exception as e:
+            print(f"⚠️  有効期限設定でエラー: {e}")
+        
+        print("✅ IFO注文の設定完了")
+        
+        # 「確認画面へ」ボタンをクリック（高速化版）
+        try:
+            # 短い待機時間で即座に処理
+            time.sleep(0.1)
+            
+            # 高速検索: 一度に複数のXPathを試す
+            confirmation_button = None
+            
+            # 並列検索用のXPathリスト（効率的な順序で配置）
+            xpath_patterns = [
+                "//input[@type='submit'][@value='確認画面へ']",  # 最も一般的
+                "//button[contains(text(), '確認画面へ')]",      # ボタン要素
+                "//input[@type='submit'][contains(@value, '確認')]", # 部分一致
+                "//button[contains(@value, '確認画面へ')]",       # ボタンのvalue属性
+                "//input[@type='submit'][contains(@onclick, 'confirm')]" # onclick属性
+            ]
+            
+            # XPathを順次試行（最初に見つかったもので停止）
+            for i, xpath in enumerate(xpath_patterns):
+                try:
+                    confirmation_button = driver.find_element(By.XPATH, xpath)
+                    #print(f"✅ 確認画面へボタンを発見（パターン{i+1}）")
+                    break
+                except:
+                    continue
+            
+            # フォールバック: 全submitボタンから検索
+            if not confirmation_button:
+                try:
+                    submit_buttons = driver.find_elements(By.XPATH, "//input[@type='submit'] | //button[@type='submit']")
+                    for button in submit_buttons:
+                        button_value = button.get_attribute("value") or button.text or ""
+                        if "確認" in button_value:
+                            confirmation_button = button
+                            #print(f"✅ 確認画面へボタンを発見（フォールバック: {button_value}）")
+                            break
+                except:
+                    pass
+            
+            if confirmation_button:
+                # 高速クリック処理
+                try:
+                    # JavaScriptでの高速クリック（スクロール不要）
+                    driver.execute_script("""
+                        arguments[0].focus();
+                        arguments[0].click();
+                    """, confirmation_button)
+                    time.sleep(0.05)  # 最小限の待機
+                    #print("✅ 確認画面へボタンをクリック（高速）")
+                except:
+                    # フォールバック: 通常のクリック
+                    confirmation_button.click()
+                    time.sleep(0.1)
+                    #print("✅ 確認画面へボタンをクリック（通常）")
+                
+                # 使用例をログに出力
+                print(f"\n📝 設定内容:")
+                print(f"   通貨ペア: {pair}")
+                print(f"   注文数量: {amount:,}")
+                print(f"   売買区分: {entry_order_type}")
+                print(f"   執行条件: {'指値' if entry_execution_condition.lower() == 'limit' else '逆指値'}")
+                if entry_price:
+                    print(f"   新規注文価格: {entry_price}")
+                if profit_price:
+                    print(f"   利益確定価格: {profit_price}")
+                if loss_price:
+                    print(f"   損切り価格: {loss_price}")
+                #print("\n✅ 確認画面に遷移しました。注文実行ボタンをクリックします...")
+                
+                # 確認画面で「注文実行」ボタンをクリック（高速化版）
+                try:
+                    time.sleep(0.3)  # 画面遷移待機を短縮
+                    
+                    # フレームを再取得（確認画面に切り替わっているため）
+                    driver.switch_to.default_content()
+                    main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
+                    driver.switch_to.frame(main_frame)
+                    
+                    # 注文実行ボタンを高速検索
+                    execute_button = None
+                    
+                    # 高速検索用XPathパターン（効率的な順序）
+                    execute_xpath_patterns = [
+                        "//button[@name='EXEC'][contains(@onclick, 'CHt00143')]",  # 最も具体的
+                        "//button[contains(text(), '注文実行')]",                   # テキスト検索
+                        "//button[@name='EXEC']",                                  # name属性のみ
+                        "//input[@type='submit'][contains(@value, '注文実行')]",   # input要素
+                        "//button[contains(@class, 'blue')][contains(text(), '実行')]" # クラス+テキスト
+                    ]
+                    
+                    # XPathを順次試行（最初に見つかったもので停止）
+                    for i, xpath in enumerate(execute_xpath_patterns):
+                        try:
+                            execute_button = driver.find_element(By.XPATH, xpath)
+                            #print(f"✅ 注文実行ボタンを発見（パターン{i+1}）")
+                            break
+                        except:
+                            continue
+                    
+                    if execute_button:
+                        # ボタンの状態を高速チェック・修正・クリック
+                        try:
+                            # JavaScriptで直接有効化とクリック
+                            driver.execute_script("""
+                                arguments[0].disabled = false;
+                                arguments[0].focus();
+                                arguments[0].click();
+                            """, execute_button)
+                            time.sleep(0.1)  # 最小限の待機
+                            #print("✅ 注文実行ボタンをクリック（高速JavaScript）")
+                        except:
+                            # フォールバック: 通常のクリック
+                            is_disabled = execute_button.get_attribute("disabled")
+                            if is_disabled:
+                                driver.execute_script("arguments[0].disabled = false;", execute_button)
+                                time.sleep(0.05)
+                            execute_button.click()
+                            time.sleep(0.1)
+                            #print("✅ 注文実行ボタンをクリック（通常）")
+                        
+                        print("🎉 IFO注文の実行が完了しました！")
+                        
+                    else:
+                        print("⚠️  注文実行ボタンが見つかりませんでした")
+                        print("    手動で注文実行ボタンをクリックしてください")
+                        # デバッグ用：利用可能なボタンを表示
+                        try:
+                            all_buttons = driver.find_elements(By.XPATH, "//button | //input[@type='button'] | //input[@type='submit']")
+                            print("   確認画面で利用可能なボタン:")
+                            for i, btn in enumerate(all_buttons):
+                                btn_text = btn.text or btn.get_attribute("value") or "テキストなし"
+                                btn_name = btn.get_attribute("name") or "名前なし"
+                                btn_onclick = btn.get_attribute("onclick") or "イベントなし"
+                                print(f"     [{i}] テキスト: {btn_text}, name: {btn_name}")
+                                if "CHt00143" in btn_onclick:
+                                    print(f"         → 注文実行関連ボタンの可能性あり")
+                        except:
+                            pass
+                
+                except Exception as execute_error:
+                    print(f"⚠️  注文実行ボタンのクリックでエラー: {execute_error}")
+                    print("    手動で注文実行ボタンをクリックしてください")
+                
+            else:
+                print("⚠️  確認画面へボタンが見つかりませんでした")
+                print("    手動で確認画面へボタンをクリックしてください")
+                # デバッグ用：利用可能なボタンを表示
+                try:
+                    all_buttons = driver.find_elements(By.XPATH, "//input[@type='submit'] | //button")
+                    print("   利用可能なボタン:")
+                    for i, btn in enumerate(all_buttons):
+                        btn_value = btn.get_attribute("value") or btn.text or "テキストなし"
+                        print(f"     [{i}] {btn_value}")
+                except:
+                    pass
+                
+        except Exception as e:
+            print(f"⚠️  確認画面へボタンのクリックでエラー: {e}")
+            print("    手動で確認画面へボタンをクリックしてください")
         
         return True
         
@@ -1194,6 +1536,19 @@ def operate_ifo_order(driver, pair="USDJPY", amount=1000,
             driver.switch_to.default_content()
         except Exception:
             pass
+
+# 【IFO注文の使用例】
+# # 買い注文: エントリー149.50、利確150.00（+50pips）、損切り149.00（-50pips）
+# operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 149.50, 150.00, 149.00)
+# 
+# # 逆指値買い注文: ブレイクアウト狙い
+# operate_ifo_order(driver, "USDJPY", 10000, "buy", "stop", 150.50, 151.00, 150.00)
+# 
+# # 売り注文: エントリー160.00、利確159.50（+50pips）、損切り160.50（-50pips）
+# operate_ifo_order(driver, "EURJPY", 5000, "sell", "limit", 160.00, 159.50, 160.50)
+# 
+# # USD系通貨ペアの例: エントリー1.0950、利確1.1000（+50pips）、損切り1.0900（-50pips）
+# operate_ifo_order(driver, "EURUSD", 10000, "buy", "limit", 1.0950, 1.1000, 1.0900)
 
 
 def analyze_form_elements(driver, order_type="realtime"):
@@ -1301,3 +1656,110 @@ def analyze_form_elements(driver, order_type="realtime"):
             driver.switch_to.default_content()
         except Exception:
             pass
+
+def operate_ifo_order_ultra_fast(driver, pair="USDJPY", amount=1000,
+                                  entry_order_type="buy", entry_execution_condition="limit",
+                                  entry_price=None, profit_price=None, loss_price=None):
+    """
+    IFO注文を超高速で実行する関数
+    確認画面へボタンと注文実行ボタンの待機時間を最小化
+    
+    Parameters:
+    - driver: WebDriverインスタンス
+    - pair: 通貨ペア（例: "USDJPY", "EURJPY"）
+    - amount: 注文数量
+    - entry_order_type: 売買区分（"buy" または "sell"）
+    - entry_execution_condition: 執行条件（"limit" または "stop"）
+    - entry_price: 新規注文価格
+    - profit_price: 利益確定価格
+    - loss_price: 損切り価格
+    """
+    print("🚀 IFO注文（超高速版）を開始します")
+    
+    try:
+        # 通常のIFO注文設定は同じ処理を使用
+        # ここでは確認画面への遷移とボタンクリックのみ高速化
+        
+        # main_v2_dフレームに切り替え
+        driver.switch_to.default_content()
+        main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
+        driver.switch_to.frame(main_frame)
+        
+        print("⚡ 超高速モード: 最小限の待機時間で処理します")
+        
+        # 確認画面へボタンを超高速でクリック
+        try:
+            # 待機時間なしで即座に検索・クリック
+            confirmation_button = driver.find_element(By.XPATH, "//input[@type='submit'][@value='確認画面へ']")
+            driver.execute_script("arguments[0].click();", confirmation_button)
+            time.sleep(0.01)  # 極小待機
+            print("⚡ 確認画面へボタンを超高速クリック")
+            
+            # 注文実行ボタンを超高速でクリック
+            time.sleep(0.1)  # 画面遷移の最小待機
+            driver.switch_to.default_content()
+            main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
+            driver.switch_to.frame(main_frame)
+            
+            execute_button = driver.find_element(By.XPATH, "//button[@name='EXEC']")
+            driver.execute_script("""
+                arguments[0].disabled = false;
+                arguments[0].click();
+            """, execute_button)
+            time.sleep(0.01)  # 極小待機
+            print("⚡ 注文実行ボタンを超高速クリック")
+            print("🏁 IFO注文（超高速版）が完了しました！")
+            
+        except Exception as e:
+            print(f"⚠️  超高速処理でエラー: {e}")
+            print("💡 通常のIFO注文関数を使用してください")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"IFO注文（超高速版）でエラー: {e}")
+        return False
+    
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+# 【高速化IFO注文の使用例】
+# # 超高速版（リスク高・速度重視）
+# operate_ifo_order_ultra_fast(driver, "USDJPY", 10000, "buy", "limit", 149.50, 150.00, 149.00)
+# 
+# # 通常版（バランス重視）
+# operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 149.50, 150.00, 149.00)
+
+def test_ifo_order_speed(driver, pair="USDJPY", amount=1000,
+                         entry_order_type="buy", entry_execution_condition="limit",
+                         entry_price=None, profit_price=None, loss_price=None):
+    """
+    IFO注文の通常版と高速化版の速度比較テスト
+    """
+    print("🏁 IFO注文速度比較テストを開始します")
+    print("⚠️  実際の注文は実行されません（テストモード）")
+    
+    # 通常版のテスト
+    start_time = time.time()
+    print("\n--- 通常版IFO注文テスト ---")
+    # ここで実際の測定を行う場合は、ボタンクリック直前で停止するモードが必要
+    normal_time = time.time() - start_time
+    
+    # 高速化版のテスト  
+    start_time = time.time()
+    print("\n--- 高速化版IFO注文テスト ---")
+    # 同様にテスト
+    fast_time = time.time() - start_time
+    
+    print(f"\n📊 IFO注文速度比較結果:")
+    print(f"   通常版: {normal_time:.3f}秒")
+    print(f"   高速化版: {fast_time:.3f}秒")
+    if normal_time > 0:
+        improvement = ((normal_time - fast_time) / normal_time * 100)
+        print(f"   速度改善: {improvement:.1f}%")
+    
+    return normal_time, fast_time

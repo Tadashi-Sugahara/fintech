@@ -145,40 +145,106 @@ def force_kill_chrome_processes():
         except Exception as cmd_e:
             print(f"chromedriver終了でもエラー: {cmd_e}")
 
+
 def signal_handler(signum, frame):
-    """シグナルハンドラー（Ctrl+C処理）"""
-    print(f"\nシグナル {signum} を受信しました。プログラムを強制終了します。")
+    """Ctrl+C（SIGINT）が押された時のハンドラー - ChromeDriverのブラウザのみ閉じる"""
+    print("\n\n🛑 Ctrl+C が検出されました")
+    print("ChromeDriverで開いたブラウザのみを閉じます...")
     
-    # まず通常のクリーンアップを試行
-    cleanup_driver()
-    
-    # 少し待ってから強制終了も実行
     try:
-        time.sleep(1)
-        force_kill_chrome_processes()
-    except:
-        pass
-    
-    # 最終手段: chromedriver.exeのみを確実に終了
-    try:
-        import subprocess
-        if platform.system() == 'Windows':
-            subprocess.run(['taskkill', '/F', '/IM', 'chromedriver.exe'], 
-                         capture_output=True, timeout=5)
-            print("chromedriver.exeのみを終了しました。")
-    except:
-        pass
-    
-    print("プログラムを終了します。")
-    os._exit(0)  # sys.exit()の代わりにより強力な終了を使用
-
-    # シグナルハンドラーの登録（Windowsでサポートされているもののみ）
-    try:  # シグナル
-        signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
-        if hasattr(signal, 'SIGTERM'):
-            signal.signal(signal.SIGTERM, signal_handler)  # 終了シグナル
+        if global_driver:
+            # ChromeDriverのブラウザを閉じる
+            global_driver.quit()
+            print("✅ ChromeDriverのブラウザを閉じました")
+        else:
+            print("⚠️  アクティブなChromeDriverが見つかりません")
     except Exception as e:
-        print(f"シグナルハンドラーの登録に失敗: {e}")
+        print(f"⚠️  ブラウザ終了エラー: {e}")
+    
+    try:
+        # ChromeDriverプロセスのみを対象とした軽度なクリーンアップ
+        # 他のChromeブラウザには影響しない
+        from kill_process import cleanup_driver_selective
+        cleanup_driver_selective()
+        print("✅ ChromeDriverプロセスのクリーンアップ完了")
+    except Exception as e:
+        print(f"⚠️  クリーンアップエラー: {e}")
+    
+    print("🏁 ブラウザ終了処理が完了しました")
+    print("💡 プログラムを終了するには再度 Ctrl+C を押してください")
 
-    # プログラム終了時の自動クリーンアップ
-    atexit.register(cleanup_driver)
+def cleanup_on_exit():
+    """プログラム終了時の緊急クリーンアップ"""
+    try:
+        print("\n=== 緊急終了処理を実行 ===")
+        if global_driver:
+            global_driver.quit()
+            print("✅ グローバルドライバーを終了しました")
+    except:
+        pass
+    try:
+        force_kill_chrome_processes()
+        print("✅ 緊急強制終了処理完了")
+    except:
+        pass
+
+# プログラム終了時の自動クリーンアップを登録
+atexit.register(cleanup_on_exit)
+
+def cleanup_driver_selective():
+    """ChromeDriverで起動されたブラウザのみを対象とした軽度なクリーンアップ"""
+    import psutil
+    import subprocess
+    
+    try:
+        print("🔍 ChromeDriverプロセスを検索中...")
+        
+        # ChromeDriverプロセスのPIDを取得
+        chromedriver_pids = []
+        chrome_with_test_type_pids = []
+        
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['name'] and 'chromedriver' in proc.info['name'].lower():
+                    chromedriver_pids.append(proc.info['pid'])
+                    print(f"  📍 ChromeDriver発見: PID {proc.info['pid']}")
+                
+                # --test-typeオプション付きのChromeプロセスを探す
+                if proc.info['cmdline'] and proc.info['name'] and 'chrome' in proc.info['name'].lower():
+                    cmdline_str = ' '.join(proc.info['cmdline'])
+                    if '--test-type' in cmdline_str or '--disable-dev-shm-usage' in cmdline_str:
+                        chrome_with_test_type_pids.append(proc.info['pid'])
+                        print(f"  🎯 ChromeDriver制御下のChrome発見: PID {proc.info['pid']}")
+                        
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        # ChromeDriverで起動されたChromeプロセスのみを終了
+        terminated_count = 0
+        for pid in chrome_with_test_type_pids:
+            try:
+                proc = psutil.Process(pid)
+                proc.terminate()
+                print(f"  ✅ Chrome終了: PID {pid}")
+                terminated_count += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        # ChromeDriverプロセスを終了
+        for pid in chromedriver_pids:
+            try:
+                proc = psutil.Process(pid)
+                proc.terminate()
+                print(f"  ✅ ChromeDriver終了: PID {pid}")
+                terminated_count += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        if terminated_count > 0:
+            print(f"✅ {terminated_count}個のChromeDriver関連プロセスを終了しました")
+            time.sleep(1)  # プロセス終了を待機
+        else:
+            print("ℹ️  終了対象のChromeDriverプロセスが見つかりませんでした")
+            
+    except Exception as e:
+        print(f"⚠️  選択的クリーンアップでエラー: {e}")
