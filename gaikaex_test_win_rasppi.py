@@ -8,9 +8,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
-from kill_process import force_kill_chrome_processes
-from kill_process import kill_chrome
-from kill_process import cleanup_driver_selective
+# プロセス管理機能は使用しない
+# from kill_process import force_kill_chrome_processes
+# from kill_process import kill_chrome  
+# from kill_process import cleanup_remaining_processes
 
 from login_process import login_gaikaex
 from place_order import (
@@ -38,21 +39,10 @@ import sys
 global_driver = None
 
 def cleanup_on_exit():
-    """プログラム終了時の緊急クリーンアップ"""
-    try:
-        print("\n=== 緊急終了処理を実行 ===")
-        if global_driver:
-            global_driver.quit()
-            print("✅ グローバルドライバーを終了しました")
-    except:
-        pass
-    try:
-        force_kill_chrome_processes()
-        print("✅ 緊急強制終了処理完了")
-    except:
-        pass
+    """プログラム終了時の処理"""
+    pass
 
-# プログラム終了時の自動クリーンアップを登録
+# プログラム終了時の自動クリーンアップを登録（何もしない）
 atexit.register(cleanup_on_exit)
 
 
@@ -178,49 +168,13 @@ def monitor_usdjpy_rate(driver):
         print("終了します。ブラウザを閉じます")
         driver.quit()
 
-<<<<<<< HEAD
-def order_test(driver):
-=======
-def order_test():
->>>>>>> 6ba16a8da5025f08998ef85734a615fecbfdf5b3
-     # リアルタイム注文のテスト（デフォルト値でテスト）
-    print("\n--- リアルタイム注文 速度比較テスト ---")
-            
-    # 通常版のテスト（execute_order=False）
-    print("\n🔄 通常版実行テスト:")
-    start_time = time.time()
-    operate_realtime_order(driver, "USDJPY", 20000, "sell", execute_order=False)
-    normal_time = time.time() - start_time
-    print(f"⏱️ 通常版実行時間: {normal_time:.3f}秒")
-            
-    # 高速版のテスト（execute_order=False）
-    print("\n⚡ 高速版実行テスト:")
-    start_time = time.time()
-    operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=False)
-    fast_time = time.time() - start_time
-    print(f"⏱️ 高速版実行時間: {fast_time:.3f}秒")
-            
-    # 超高速版のテスト（execute_order=False）
-    print("\n🚀 超高速版実行テスト:")
-    start_time = time.time()
-    operate_realtime_order_ultra_fast(driver, "USDJPY", 20000, "sell", execute_order=False)
-    ultra_fast_time = time.time() - start_time
-    print(f"⏱️ 超高速版実行時間: {ultra_fast_time:.3f}秒")
-            
-    # 速度改善の結果表示
-    print(f"\n📊 速度改善結果:")
-    print(f"   通常版: {normal_time:.3f}秒")
-    print(f"   高速版: {fast_time:.3f}秒 ({((normal_time - fast_time) / normal_time * 100):.1f}% 改善)")
-    print(f"   超高速版: {ultra_fast_time:.3f}秒 ({((normal_time - ultra_fast_time) / normal_time * 100):.1f}% 改善)")
-            
-
 
 def main():
     global global_driver
     
-    # WindowsでのCtrl+C処理はKeyboardInterruptで行います
-    print("🔧 Ctrl+C検出の準備完了...")
-    print("💡 Ctrl+C: ブラウザ終了とプロセスクリーンアップを実行\n")
+    # Ctrl+Cでプログラム終了
+    print("� FXトレーディングシステムを開始します")
+    print("💡 Ctrl+C でプログラムを終了できます\n")
     
     login_id = "3006316"
     password = "Sutada53"
@@ -251,7 +205,7 @@ def main():
     options.add_argument('--disable-features=VizDisplayCompositor')
     options.add_argument('--disable-ipc-flooding-protection')
     
-    # ブラウザクラッシュ防止オプション
+    # ブラウザクラッシュ防止オプション（強化版）
     options.add_argument('--disable-background-timer-throttling')
     options.add_argument('--disable-renderer-backgrounding')
     options.add_argument('--disable-backgrounding-occluded-windows')
@@ -262,13 +216,29 @@ def main():
     options.add_argument('--disable-desktop-notifications')
     options.add_argument('--disable-domain-reliability')
     
-    # メモリとパフォーマンス最適化
+    # 強制終了防止のための追加オプション
+    options.add_argument('--disable-hang-monitor')  # ハングモニター無効化
+    options.add_argument('--disable-prompt-on-repost')  # 再送信プロンプト無効化
+    options.add_argument('--disable-client-side-phishing-detection')  # フィッシング検出無効化
+    options.add_argument('--disable-component-update')  # コンポーネント更新無効化
+    options.add_argument('--disable-background-mode')  # バックグラウンドモード無効化
+    options.add_argument('--disable-features=TranslateUI')  # 翻訳UI無効化
+    options.add_argument('--disable-features=VizDisplayCompositor,VizServiceDisplay')  # 描画処理最適化
+    options.add_argument('--force-device-scale-factor=1')  # DPI固定
+    
+    # メモリとパフォーマンス最適化（強化版）
     options.add_argument('--memory-pressure-off')
     options.add_argument('--max_old_space_size=4096')
     options.add_argument('--disable-sync')
     options.add_argument('--disable-translate')
     options.add_argument('--disable-plugins')
     options.add_argument('--disable-plugins-discovery')
+    
+    # リソース制限とメモリ管理
+    options.add_argument('--max-tiles-for-interest-area=512')  # タイル数制限
+    options.add_argument('--num-raster-threads=4')  # ラスタースレッド数制限
+    options.add_argument('--enable-tcp-fast-open')  # TCP高速化
+    options.add_argument('--disable-partial-raster')  # 部分ラスター無効化
     
     # ネットワーク関連の安定化
     options.add_argument('--disable-logging')
@@ -399,15 +369,8 @@ def main():
         print("ChromeDriver path not found, letting Selenium auto-detect...")
         service = Service()
     
-    # Chrome起動前のクリーンアップ
-    print("=== 起動前クリーンアップを実行 ===")
-    try:
-        print("既存のChromeDriverプロセスをクリーンアップ中...")
-        force_kill_chrome_processes()
-        time.sleep(2)  # プロセス終了を確実に待つ
-        print("✅ 起動前クリーンアップ完了")
-    except Exception as cleanup_e:
-        print(f"⚠️ 起動前クリーンアップでエラー: {cleanup_e}")
+    # プロセスクリーンアップは実行しない
+    print("=== Chromeブラウザを起動します ===")
     
     # Chrome起動（リトライ機能付き）
     print("=== 高安定性Chromeブラウザを起動 ===")
@@ -460,13 +423,7 @@ def main():
             
             if attempt < max_retries:
                 print(f"🔄 {3}秒後に再試行します...")
-                
-                # プロセスクリーンアップして再試行
-                try:
-                    kill_chrome()
-                    time.sleep(3)
-                except:
-                    pass
+                time.sleep(3)
                     
             else:
                 print("❌ 全ての起動試行が失敗しました")
@@ -479,400 +436,76 @@ def main():
     
     # グローバル変数に設定（終了処理用）
     global_driver = driver
-    
-    # ブラウザ健全性監視機能
-    def check_browser_health(driver, operation_name="操作"):
-        """ブラウザの健全性をチェックし、問題があれば報告"""
-        try:
-            # 基本的な接続確認
-            current_url = driver.current_url
-            
-            # JavaScriptの実行確認
-            result = driver.execute_script("return 'browser_healthy';")
-            
-            if result == 'browser_healthy':
-                print(f"✅ {operation_name}: ブラウザ健全性OK")
-                return True
-            else:
-                print(f"⚠️  {operation_name}: JavaScript実行異常")
-                return False
-                
-        except Exception as e:
-            print(f"❌ {operation_name}: ブラウザ健全性エラー - {e}")
-            return False
+
     
     try:
-        # 初期健全性チェック
-        if not check_browser_health(driver, "起動後"):
-            print("⚠️  ブラウザの初期状態に問題があります")
-        
         login_gaikaex(driver, login_id, password)
         # ログイン後の処理
         print('ログイン完了。')
         
-        # ログイン後の健全性チェック
-        if not check_browser_health(driver, "ログイン後"):
-            print("⚠️  ログイン後にブラウザの状態に問題があります")
-        
-        #print("「新規注文」- 「リアルタイム」を開いたときに表示される、「確認」ダイアログを手動で閉じたら、Enterを押してください。")
-        #input("Enterキーを押して続行...")   
+
 
         # ページ情報を表示（デバッグ用）
         get_page_source_info(driver)
         
         # 新規注文画面に移動
-        print("🔄 新規注文画面への移動を開始...")
+        #print("🔄 新規注文画面への移動を開始...")
         if navigate_to_new_order(driver):
             print("✅ 新規注文画面への移動が成功しました")
             
-            # 画面遷移後の健全性チェック
-            time.sleep(2)  # 画面描画を待つ
-            if not check_browser_health(driver, "画面遷移後"):
-                print("⚠️  画面遷移後にブラウザの状態に問題があります")
+            # 画面遷移後の安定化処理
+            time.sleep(2)  # 画面描画を十分に待つ（安定性向上）
+
+            try:
+                WebDriverWait(driver, 10).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+                print("✅ 画面読み込みが完了しました")
+            except TimeoutException:
+                print("⚠️  画面読み込みがタイムアウトしましたが、処理を続行します")
             
             # 少し待ってから新規注文画面の状況を確認
-            time.sleep(1)
-            
-            # 新規注文画面のフレーム情報を詳細表示
-            get_order_frame_info(driver)
-            
-            # 各注文タイプの操作関数をデモンストレーション
-            print("\n=== リアルタイム注文画面の要素分析 ===")
-            
-            # リアルタイム注文画面の要素を詳細分析
-            analyze_form_elements(driver, "realtime")
-            
-            #print("\n=== リアルタイム注文操作のテスト ===") 
-            #order_test()
-
-            print("\n--- 実際の注文実行（高速版使用、execute_order=True）---")
+            #time.sleep(1)
+            print("初期メッセージの確認をチェックしてください。")
+            input("Enterキーを押して続行...")
 
             # Realtime注文の実行（超高速)
             # operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=True)  # 高速版を使用
             
             # IFO注文の実行例 
             operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
-
-        
-    
-            try:
-                # main_v2_dフレームに切り替えて内容確認
-                driver.switch_to.default_content()
-                main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
-                driver.switch_to.frame(main_frame)
-                
-                print(f"最終確認 - ページタイトル: {driver.title}")
-                print("新規注文画面が表示されています。確認ダイアログが出た場合は手動で処理してください。")
-                
-                # ページソースをチェックして確認ダイアログの有無を確認
-                page_source = driver.page_source
-                if "次回" in page_source and ("表示しない" in page_source or "チェック" in page_source):
-                    print("⚠️  確認ダイアログが表示されている可能性があります")
-                    print("    - 「次回からこの情報を表示しない」にチェックを入れてください")
-                    print("    - 「OK」ボタンをクリックしてください")
-                
-            except Exception as e:
-                print(f"最終確認でエラー: {e}")
             
+            # IFO注文実行後は最終確認処理をスキップ
+            print("✅ IFO注文処理が完了しました")
+
+
         else:
             print("❌ 新規注文画面への移動に失敗しました")
         
-        # ブラウザを開いたまま待機（定期的な健全性チェック付き）
-        print('\nブラウザを開いたまま待機します。終了するには Ctrl+C を押してください。')
-        health_check_counter = 0
-        while True:
-            try:
+        # シンプルな待機ループ（Ctrl+Cで終了）
+        print('\nプログラムを終了するには Ctrl+C を押してください。')
+        
+        try:
+            while True:
                 time.sleep(1)
-                health_check_counter += 1
-                
-                # 30秒ごとに健全性チェック
-                if health_check_counter >= 30:
-                    if not check_browser_health(driver, "定期チェック"):
-                        print("⚠️  定期チェックでブラウザの異常を検出しました")
-                        print("    ブラウザの状態を確認してください")
-                    health_check_counter = 0
-                    
-            except KeyboardInterrupt:
-                print('\n🛑 待機中にCtrl+Cが検出されました')
-                print('ブラウザ終了処理を実行します...')
-                
-                # 強化されたブラウザ終了処理
-                try:
-                    if global_driver:
-                        global_driver.quit()
-                        print('✅ グローバルドライバーを終了')
-                except:
-                    pass
-                
-                try:
-                    if 'driver' in locals() and driver:
-                        driver.quit()
-                        print('✅ ローカルドライバーを終了')
-                except:
-                    pass
-                
-                try:
-                    force_kill_chrome_processes()
-                    print('✅ プロセス強制終了完了')
-                except:
-                    pass
-                
-                try:
-                    cleanup_remaining_processes()
-                    print('✅ 残存プロセスクリーンアップ完了')
-                except:
-                    pass
-                
-                print('🏁 待機ループ終了処理完了')
-                break
+                # ここに他の定期処理を追加可能
+
+
+        except KeyboardInterrupt:
+            print('\n🛑 Ctrl+Cが検出されました')
+            print('🏁 プログラムを終了します')
                 
     except KeyboardInterrupt:
-        print('\n=== 🛑 Ctrl+C が検出されました ===')
-        print('ChromeDriverブラウザ終了処理を開始します...')
-        
-        # 段階1: ブラウザを即座に閉じる
-        try:
-            if global_driver:
-                print("段階1: グローバルドライバーを終了中...")
-                global_driver.quit()
-                print('✅ グローバルドライバーを終了しました')
-        except Exception as e:
-            print(f"⚠️  グローバルドライバー終了エラー: {e}")
-        
-        try:
-            if 'driver' in locals() and driver:
-                print("段階1: ローカルドライバーを終了中...")
-                driver.quit()
-                print('✅ ローカルドライバーを終了しました')
-        except Exception as e:
-            print(f"⚠️  ローカルドライバー終了エラー: {e}")
-        
-        # 段階2: ChromeDriverプロセス強制終了
-        try:
-            print("段階2: ChromeDriverプロセス強制終了中...")
-            force_kill_chrome_processes()
-            print('✅ ChromeDriverプロセス強制終了完了')
-        except Exception as e:
-            print(f"⚠️  プロセス強制終了エラー: {e}")
-        
-        # 段階3: 残存プロセス追加クリーンアップ
-        try:
-            print("段階3: 残存プロセス追加クリーンアップ中...")
-            cleanup_remaining_processes()
-            print('✅ 残存プロセス追加クリーンアップ完了')
-        except Exception as e:
-            print(f"⚠️  追加クリーンアップエラー: {e}")
-        
-        # 段階4: 最終確認
-        try:
-            print("段階4: 最終プロセス確認中...")
-            check_remaining_processes()
-        except Exception as e:
-            print(f"⚠️  最終確認エラー: {e}")
-        
-        print("🏁 Ctrl+Cによるブラウザ終了処理が完了しました")
-        print("💡 プログラムを完全終了します")
+        print('\n🛑 プログラムを終了します')
     except Exception as e:
         print(f"❌ エラー: {e}")
-        print('例外発生時もブラウザを開いたままにします。終了するには Ctrl+C を押してください。')
-        while True:
-            try:
-                time.sleep(1)
-            except KeyboardInterrupt:
-                print('\n=== 🛑 最終KeyboardInterrupt検出 ===')
-                print('強制的にブラウザを閉じて終了します...')
-                
-                # 完全なクリーンアップ処理
-                try:
-                    if global_driver:
-                        global_driver.quit()
-                        print('✅ グローバルドライバー強制終了')
-                except:
-                    pass
-                
-                try:
-                    if 'driver' in locals() and driver:
-                        driver.quit()
-                        print('✅ ローカルドライバー強制終了')
-                except:
-                    pass
-                
-                try:
-                    force_kill_chrome_processes()
-                    print('✅ 全Chromeプロセス強制終了')
-                except:
-                    pass
-                
-                try:
-                    cleanup_remaining_processes()
-                    print('✅ 残存プロセス完全クリーンアップ')
-                except:
-                    pass
-                
-                print('🏁 最終強制終了処理完了')
-                break
+        print('🏁 プログラムを終了します')
     finally:
-        # 確実にブラウザを閉じる（複数段階の終了処理）
-        print("\n=== ブラウザ終了処理を開始 ===")
-        
-        # 段階1: 通常の終了処理
-        try:
-            if 'driver' in locals() and driver:
-                print("段階1: 通常の終了処理を実行中...")
-                driver.quit()
-                print("✅ ブラウザが正常に閉じられました。")
-            else:
-                print("⚠️ ドライバーが初期化されていません")
-        except Exception as e:
-            print(f"❌ 通常の終了処理でエラー: {e}")
-        
-        # 段階2: グローバルドライバーの終了処理
-        try:
-            if global_driver:
-                print("段階2: グローバルドライバーの終了処理を実行中...")
-                global_driver.quit()
-                print("✅ グローバルドライバーが正常に閉じられました。")
-        except Exception as e:
-            print(f"❌ グローバルドライバー終了でエラー: {e}")
-        
-        # 段階3: 強制終了処理
-        try:
-            print("段階3: ChromeDriverプロセスの強制終了を実行中...")
-            force_kill_chrome_processes()
-            print("✅ ChromeDriverプロセスの強制終了が完了しました。")
-        except Exception as force_e:
-            print(f"❌ 強制終了処理でもエラー: {force_e}")
-        
-        # 段階4: 最終クリーンアップ
-        try:
-            print("段階4: 最終クリーンアップを実行中...")
-            kill_chrome()
-            print("✅ 最終クリーンアップが完了しました。")
-        except Exception as cleanup_e:
-            print(f"❌ 最終クリーンアップでエラー: {cleanup_e}")
-        
-        # 段階5: 追加の残存プロセス確認・終了処理
-        try:
-            print("段階5: 残存プロセスの確認と終了を実行中...")
-            cleanup_remaining_processes()
-            print("✅ 残存プロセスの終了が完了しました。")
-        except Exception as remaining_e:
-            print(f"❌ 残存プロセス終了でエラー: {remaining_e}")
-        
-        # 段階6: 最終プロセス確認
-        try:
-            print("段階6: 最終プロセス確認を実行中...")
-            check_remaining_processes()
-        except Exception as check_e:
-            print(f"❌ プロセス確認でエラー: {check_e}")
-        
         # グローバル変数をクリア
         global_driver = None
-        
-        print("=== ブラウザ終了処理完了 ===")
-        print("プログラムを終了します。")
+        print("🏁 プログラム終了")
 
-def cleanup_remaining_processes():
-    """残存するChromeプロセスを強制的に終了する"""
-    import psutil
-    import subprocess
-    import time
-    
-    terminated_count = 0
-    
-    try:
-        print("🔍 残存するChromeプロセスを検索中...")
-        
-        # ChromeDriverとChrome関連プロセスを検索
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                if proc.info['name'] and proc.info['cmdline']:
-                    name_lower = proc.info['name'].lower()
-                    cmdline_str = ' '.join(proc.info['cmdline']).lower()
-                    
-                    # ChromeDriverプロセス
-                    if 'chromedriver' in name_lower:
-                        print(f"  🎯 ChromeDriver発見: PID {proc.info['pid']}")
-                        proc.terminate()
-                        terminated_count += 1
-                        
-                    # 自動化用Chromeプロセス（--test-type等の引数を持つ）
-                    elif 'chrome' in name_lower and any(flag in cmdline_str for flag in [
-                        '--test-type', '--disable-dev-shm-usage', '--no-sandbox', 
-                        '--disable-gpu', '--disable-extensions'
-                    ]):
-                        print(f"  🎯 自動化Chrome発見: PID {proc.info['pid']}")
-                        proc.terminate()
-                        terminated_count += 1
-                        
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        
-        if terminated_count > 0:
-            print(f"✅ {terminated_count}個のプロセスを終了しました")
-            time.sleep(2)  # プロセス終了を待つ
-            
-            # 強制終了が必要なプロセスをkillで処理
-            print("🔧 強制終了処理を実行中...")
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    if proc.info['name'] and proc.info['cmdline']:
-                        name_lower = proc.info['name'].lower()
-                        cmdline_str = ' '.join(proc.info['cmdline']).lower()
-                        
-                        if ('chromedriver' in name_lower or 
-                            ('chrome' in name_lower and any(flag in cmdline_str for flag in [
-                                '--test-type', '--disable-dev-shm-usage'
-                            ]))):
-                            print(f"  💀 強制終了: PID {proc.info['pid']}")
-                            proc.kill()
-                            
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    continue
-                    
-        else:
-            print("ℹ️  終了対象の残存プロセスは見つかりませんでした")
-            
-    except Exception as e:
-        print(f"⚠️  残存プロセス終了でエラー: {e}")
 
-def check_remaining_processes():
-    """残存するChromeプロセスがあるかチェックして報告"""
-    import psutil
-    
-    remaining_processes = []
-    
-    try:
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                if proc.info['name'] and proc.info['cmdline']:
-                    name_lower = proc.info['name'].lower()
-                    cmdline_str = ' '.join(proc.info['cmdline']).lower()
-                    
-                    if ('chromedriver' in name_lower or 
-                        ('chrome' in name_lower and any(flag in cmdline_str for flag in [
-                            '--test-type', '--disable-dev-shm-usage', '--no-sandbox'
-                        ]))):
-                        remaining_processes.append({
-                            'pid': proc.info['pid'],
-                            'name': proc.info['name'],
-                            'cmdline': ' '.join(proc.info['cmdline'])[:100] + '...'
-                        })
-                        
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        
-        if remaining_processes:
-            print(f"⚠️  {len(remaining_processes)}個の関連プロセスが残存しています:")
-            for proc in remaining_processes:
-                print(f"     PID {proc['pid']}: {proc['name']}")
-                print(f"     コマンド: {proc['cmdline']}")
-            print("💡 手動でタスクマネージャーから終了することをお勧めします")
-        else:
-            print("✅ Chrome関連の残存プロセスはありません")
-            
-    except Exception as e:
-        print(f"⚠️  プロセス確認でエラー: {e}")
 
 if __name__ == "__main__":
     main()

@@ -248,3 +248,106 @@ def cleanup_driver_selective():
             
     except Exception as e:
         print(f"⚠️  選択的クリーンアップでエラー: {e}")
+
+
+def check_remaining_processes():
+    """残存するChromeプロセスがあるかチェックして報告"""
+    import psutil
+    
+    remaining_processes = []
+    
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['name'] and proc.info['cmdline']:
+                    name_lower = proc.info['name'].lower()
+                    cmdline_str = ' '.join(proc.info['cmdline']).lower()
+                    
+                    if ('chromedriver' in name_lower or 
+                        ('chrome' in name_lower and any(flag in cmdline_str for flag in [
+                            '--test-type', '--disable-dev-shm-usage', '--no-sandbox'
+                        ]))):
+                        remaining_processes.append({
+                            'pid': proc.info['pid'],
+                            'name': proc.info['name'],
+                            'cmdline': ' '.join(proc.info['cmdline'])[:100] + '...'
+                        })
+                        
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        if remaining_processes:
+            print(f"⚠️  {len(remaining_processes)}個の関連プロセスが残存しています:")
+            for proc in remaining_processes:
+                print(f"     PID {proc['pid']}: {proc['name']}")
+                print(f"     コマンド: {proc['cmdline']}")
+            print("💡 手動でタスクマネージャーから終了することをお勧めします")
+        else:
+            print("✅ Chrome関連の残存プロセスはありません")
+            
+    except Exception as e:
+        print(f"⚠️  プロセス確認でエラー: {e}")
+
+def cleanup_remaining_processes():
+    """残存するChromeプロセスを強制的に終了する"""
+    import psutil
+    import subprocess
+    import time
+    
+    terminated_count = 0
+    
+    try:
+        print("🔍 残存するChromeプロセスを検索中...")
+        
+        # ChromeDriverとChrome関連プロセスを検索
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['name'] and proc.info['cmdline']:
+                    name_lower = proc.info['name'].lower()
+                    cmdline_str = ' '.join(proc.info['cmdline']).lower()
+                    
+                    # ChromeDriverプロセス
+                    if 'chromedriver' in name_lower:
+                        print(f"  🎯 ChromeDriver発見: PID {proc.info['pid']}")
+                        proc.terminate()
+                        terminated_count += 1
+                        
+                    # 自動化用Chromeプロセス（--test-type等の引数を持つ）
+                    elif 'chrome' in name_lower and any(flag in cmdline_str for flag in [
+                        '--test-type', '--disable-dev-shm-usage', '--no-sandbox', 
+                        '--disable-gpu', '--disable-extensions'
+                    ]):
+                        print(f"  🎯 自動化Chrome発見: PID {proc.info['pid']}")
+                        proc.terminate()
+                        terminated_count += 1
+                        
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        if terminated_count > 0:
+            print(f"✅ {terminated_count}個のプロセスを終了しました")
+            time.sleep(2)  # プロセス終了を待つ
+            
+            # 強制終了が必要なプロセスをkillで処理
+            print("🔧 強制終了処理を実行中...")
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['name'] and proc.info['cmdline']:
+                        name_lower = proc.info['name'].lower()
+                        cmdline_str = ' '.join(proc.info['cmdline']).lower()
+                        
+                        if ('chromedriver' in name_lower or 
+                            ('chrome' in name_lower and any(flag in cmdline_str for flag in [
+                                '--test-type', '--disable-dev-shm-usage'
+                            ]))):
+                            print(f"  💀 強制終了: PID {proc.info['pid']}")
+                            proc.kill()
+                            
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+                    
+        else:
+            print("ℹ️  終了対象の残存プロセスは見つかりませんでした")
+            
+    except Exception as e:
+        print(f"⚠️  残存プロセス終了でエラー: {e}")
