@@ -9,6 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 from kill_process import force_kill_chrome_processes
+from kill_process import kill_chrome
 from login_process import login_gaikaex
 
 
