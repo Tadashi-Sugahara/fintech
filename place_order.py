@@ -1399,7 +1399,7 @@ def operate_ifo_order(driver, pair="USDJPY", amount=1000,
             
             # JavaScript一回実行で検索・クリック完了
             click_success = driver.execute_script(click_script)
-            
+            # 結果ログ出力
             if click_success:
                 click_time = time.time() - start_click_time
                 print(f"⚡ 確認画面へボタン超高速クリック完了: {click_time*1000:.1f}ms")
