@@ -1,5 +1,4 @@
-# 外貨EXにChromeDriverでログインして、為替レートを取得するサンプルコード
-# 事前にChromeDriverをインストールしておくこと
+# 外貨EXにChromeDriverでログインして、為替レートを取得・自動発注するサンプルコード
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -47,19 +46,17 @@ def cleanup_on_exit():
 # プログラム終了時の自動クリーンアップを登録（何もしない）
 atexit.register(cleanup_on_exit)
 
+global global_driver
 
-def main():
-    global global_driver
-    
+def open_browser():
+    options = webdriver.ChromeOptions()
+    print("Chormeを起動します。")
+        
     # Ctrl+Cでプログラム終了
     print("� FXトレーディングシステムを開始します")
     print("💡 Ctrl+C でプログラムを終了できます\n")
-    
-    login_id = "3006316"
-    password = "Sutada53"
-    options = webdriver.ChromeOptions()
-    
-    # ブラウザ実行ファイルは環境変数で上書き可能
+
+        # ブラウザ実行ファイルは環境変数で上書き可能
     chrome_binary = os.environ.get('CHROME_BINARY')
     if chrome_binary:
         options.binary_location = chrome_binary
@@ -315,6 +312,17 @@ def main():
     
     # グローバル変数に設定（終了処理用）
     global_driver = driver
+
+
+def main():
+
+
+    
+    login_id = "3006316"
+    password = "Sutada53"
+
+    
+
 
     
     try:
