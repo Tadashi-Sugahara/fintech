@@ -2079,12 +2079,231 @@ def test_ifo_order_speed(driver, pair="USDJPY", amount=1000,
     total_ultra_time = ultra_time + execute_time
     estimated_normal_time = normal_time + 0.5  # 推定通常処理時間
     
-    print(f"\n📊 総合速度比較結果:")
-    print(f"   推定通常版: {estimated_normal_time*1000:.1f}ms")
-    print(f"   超高速版: {total_ultra_time*1000:.1f}ms")
-    
-    if estimated_normal_time > 0:
-        total_improvement = ((estimated_normal_time - total_ultra_time) / estimated_normal_time * 100)
-        print(f"   🚀 総合速度改善: {total_improvement:.1f}%")
+    print(f"\n🎯 総合速度: {total_ultra_time*1000:.2f}ms")
+    print(f"💡 推定改善効果: {((estimated_normal_time - total_ultra_time) / estimated_normal_time * 100):.1f}%")
     
     return results
+
+def navigate_to_order_correction(driver):
+    """
+    「注文訂正」機能に移動する関数
+    提供されたHTMLソースに基づいて注文訂正メニューを選択・クリック
+    
+    Args:
+        driver: WebDriverインスタンス
+    
+    Returns:
+        bool: 成功した場合True、失敗した場合False
+    """
+    try:
+        print("注文訂正メニューに移動しています...")
+        
+        # 1. デフォルトコンテンツに戻る
+        driver.switch_to.default_content()
+        time.sleep(0.1)
+        
+        # 2. mainMenuフレームに切り替え
+        try:
+            main_menu_frame = driver.find_element(By.CSS_SELECTOR, "iframe#mainMenu, iframe[name='mainMenu']")
+            driver.switch_to.frame(main_menu_frame)
+            print("✅ mainMenuフレームに切り替えました")
+        except Exception as e:
+            print(f"❌ mainMenuフレームの切り替えに失敗: {e}")
+            return False
+        
+        # 3. 「取引」メニューが開いているか確認し、必要に応じて開く
+        try:
+            # h3#1 が「取引」メニューのヘッダー
+            trade_menu_header = driver.find_element(By.ID, "1")
+            
+            # selectedクラスがない場合はクリックしてメニューを開く
+            if "selected" not in trade_menu_header.get_attribute("class"):
+                print("「取引」メニューを開きます...")
+                trade_menu_header.click()
+                time.sleep(0.1)
+            else:
+                print("「取引」メニューは既に開いています")
+                
+        except Exception as e:
+            print(f"❌ 「取引」メニューの操作に失敗: {e}")
+            return False
+        
+        # 4. 「注文訂正」リンクをクリック
+        try:
+            # menu01内の「注文訂正」リンクを探す
+            order_correction_link = driver.find_element(By.XPATH, "//ul[@id='menu01']//a[contains(text(), '注文訂正')]")
+            
+            if order_correction_link.is_displayed():
+                print("「注文訂正」リンクをクリックします...")
+                order_correction_link.click()
+                time.sleep(0.5)  # ページ遷移を待つ
+                print("✅ 「注文訂正」画面への移動が完了しました")
+                return True
+            else:
+                print("❌ 「注文訂正」リンクが表示されていません")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 「注文訂正」リンクのクリックに失敗: {e}")
+            
+            # フォールバック: JavaScriptによる直接遷移
+            try:
+                print("💡 JavaScriptによる直接遷移を試行...")
+                # HTMLソースから判断される注文訂正のservlet URL
+                js_command = "_submitForm('/servlet/lzca.pc.cht001.servlet.CHt00171', 'Ht00171');"
+                driver.execute_script(js_command)
+                time.sleep(0.5)
+                print("✅ JavaScript実行で「注文訂正」に移動しました")
+                return True
+            except Exception as js_e:
+                print(f"❌ JavaScript実行でもエラー: {js_e}")
+                return False
+            
+    except Exception as e:
+        print(f"❌ 注文訂正メニューへの移動でエラーが発生: {e}")
+        return False
+    
+    finally:
+        # デフォルトコンテンツに戻る
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
+def get_order_correction_info(driver):
+    """
+    注文訂正画面の情報を取得・表示する関数
+    """
+    try:
+        print("\n=== 注文訂正画面情報 ===")
+        
+        # main_v2_dフレームに切り替え
+        driver.switch_to.default_content()
+        main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
+        driver.switch_to.frame(main_frame)
+        
+        # ページタイトル確認
+        page_title = driver.title
+        print(f"ページタイトル: {page_title}")
+        
+        # 現在のURL確認
+        current_url = driver.current_url
+        print(f"現在のURL: {current_url}")
+        
+        # 注文一覧テーブルの確認
+        try:
+            # 注文一覧テーブルを探す
+            tables = driver.find_elements(By.TAG_NAME, "table")
+            print(f"テーブル数: {len(tables)}")
+            
+            for i, table in enumerate(tables):
+                try:
+                    # テーブルのヘッダー行を確認
+                    headers = table.find_elements(By.TAG_NAME, "th")
+                    if len(headers) > 0:
+                        print(f"テーブル[{i}] ヘッダー:")
+                        for j, header in enumerate(headers):
+                            header_text = header.text.strip()
+                            print(f"  [{j}] {header_text}")
+                    
+                    # 注文データ行を確認（最初の3行のみ）
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    data_rows = [row for row in rows if row.find_elements(By.TAG_NAME, "td")]
+                    
+                    if len(data_rows) > 0:
+                        print(f"データ行数: {len(data_rows)}")
+                        for k, row in enumerate(data_rows[:3]):  # 最初の3行のみ表示
+                            cells = row.find_elements(By.TAG_NAME, "td")
+                            print(f"  行[{k}]: {len(cells)}列")
+                            for l, cell in enumerate(cells[:5]):  # 最初の5列のみ表示
+                                cell_text = cell.text.strip()
+                                print(f"    [{l}] {cell_text}")
+                                
+                            # 訂正ボタンがあるかチェック
+                            correction_buttons = row.find_elements(By.XPATH, ".//input[@type='button' or @type='submit'] | .//button")
+                            if correction_buttons:
+                                print(f"    🔧 訂正ボタン: {len(correction_buttons)}個")
+                                for btn in correction_buttons:
+                                    btn_text = btn.get_attribute("value") or btn.text or "テキストなし"
+                                    print(f"      - {btn_text}")
+                        
+                        if len(data_rows) > 3:
+                            print(f"    ... 他{len(data_rows)-3}行")
+                            
+                except Exception as table_e:
+                    print(f"テーブル[{i}]の解析でエラー: {table_e}")
+                    
+        except Exception as e:
+            print(f"テーブル情報取得エラー: {e}")
+        
+        # フォーム情報の確認
+        try:
+            forms = driver.find_elements(By.TAG_NAME, "form")
+            print(f"\nフォーム情報 ({len(forms)}個):")
+            
+            for i, form in enumerate(forms):
+                try:
+                    form_name = form.get_attribute("name") or "no-name"
+                    form_action = form.get_attribute("action") or "no-action"
+                    form_method = form.get_attribute("method") or "GET"
+                    
+                    print(f"  form[{i}]: name={form_name}")
+                    print(f"            action={form_action}")
+                    print(f"            method={form_method}")
+                    
+                    # フォーム内の入力要素を確認
+                    inputs = form.find_elements(By.TAG_NAME, "input")
+                    selects = form.find_elements(By.TAG_NAME, "select")
+                    buttons = form.find_elements(By.XPATH, ".//input[@type='button' or @type='submit'] | .//button")
+                    
+                    print(f"            inputs: {len(inputs)}個, selects: {len(selects)}個, buttons: {len(buttons)}個")
+                    
+                except Exception:
+                    print(f"  form[{i}]: 情報取得エラー")
+                    
+        except Exception as e:
+            print(f"フォーム情報取得エラー: {e}")
+        
+        print("========================\n")
+        
+    except Exception as e:
+        print(f"注文訂正画面情報取得でエラーが発生: {e}")
+    
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
+def quick_navigate_to_order_correction(driver):
+    """
+    注文訂正画面に直接移動して情報を表示する便利関数
+    
+    Args:
+        driver: WebDriverインスタンス
+    
+    Returns:
+        bool: 成功した場合True、失敗した場合False
+    """
+    try:
+        print("注文訂正画面への直接移動を開始...")
+        
+        # 1. 注文訂正画面に移動
+        if not navigate_to_order_correction(driver):
+            print("❌ 注文訂正画面への移動に失敗")
+            return False
+        
+        time.sleep(0.1)
+        
+        # 2. 注文訂正画面の情報を表示
+        get_order_correction_info(driver)
+        
+        print("✅ 注文訂正画面への移動と情報表示が完了しました")
+        return True
+        
+    except Exception as e:
+        print(f"quick_navigate_to_order_correction でエラー: {e}")
+        return False
+    

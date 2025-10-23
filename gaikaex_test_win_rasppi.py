@@ -26,6 +26,9 @@ from place_order import (
     analyze_form_elements,
     get_order_frame_info,
     get_page_source_info,
+    navigate_to_order_correction,
+    get_order_correction_info,
+    quick_navigate_to_order_correction
 )
 
 import time
@@ -473,10 +476,19 @@ def main():
             # operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=True)  # 高速版を使用
             
             # IFO注文の実行例 
-            operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
-            
+            # operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
+            #operate_ifo_order(driver, "USDJPY", 100000, "sell", "limit", 152.69, 151.00, 153.00)
             # IFO注文実行後は最終確認処理をスキップ
-            print("✅ IFO注文処理が完了しました")
+            #print("✅ IFO注文処理が完了しました")
+
+         # 注文訂正画面に移動
+            navigate_to_order_correction(driver)
+
+            # 注文訂正画面の情報を確認
+            get_order_correction_info(driver)
+
+            # 直接移動と情報表示（推奨）
+            quick_navigate_to_order_correction(driver)
 
 
         else:
