@@ -170,6 +170,8 @@ def monitor_usdjpy_rate(driver):
 
 
 def main():
+
+
     global global_driver
     
     # Ctrl+Cでプログラム終了
@@ -458,12 +460,10 @@ def main():
                 WebDriverWait(driver, 10).until(
                     lambda d: d.execute_script("return document.readyState") == "complete"
                 )
-                print("✅ 画面読み込みが完了しました")
+                #print("✅ 画面読み込みが完了しました")
             except TimeoutException:
                 print("⚠️  画面読み込みがタイムアウトしましたが、処理を続行します")
             
-            # 少し待ってから新規注文画面の状況を確認
-            #time.sleep(1)
             print("初期メッセージの確認をチェックしてください。")
             input("Enterキーを押して続行...")
 
