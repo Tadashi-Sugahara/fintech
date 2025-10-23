@@ -391,8 +391,8 @@ def main():
                     # OCO注文の場合はテスト価格を設定
                     if order_pattern == "OCO":
                         print("📊 OCO注文のテスト価格を設定")
-                        test_limit_price = 153.800   # テスト用指値価格
-                        test_stop_price = 151.000    # テスト用逆指値価格
+                        test_limit_price = 153.750   # テスト用指値価格
+                        test_stop_price = 151.200    # テスト用逆指値価格
                         print(f"💰 テスト価格 - 指値: {test_limit_price}, 逆指値: {test_stop_price}")
                         success = process_order_correction_by_pattern_single(
                             driver, 
