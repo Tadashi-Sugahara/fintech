@@ -36,7 +36,10 @@ import signal
 import atexit
 import sys
 
+
 # グローバルドライバー変数（終了処理用）
+global global_driver
+global driver
 global_driver = None
 
 def cleanup_on_exit():
@@ -46,7 +49,7 @@ def cleanup_on_exit():
 # プログラム終了時の自動クリーンアップを登録（何もしない）
 atexit.register(cleanup_on_exit)
 
-global global_driver
+
 
 def open_browser():
     options = webdriver.ChromeOptions()
@@ -315,28 +318,22 @@ def open_browser():
 
 
 def main():
-
-
-    
+ 
     login_id = "3006316"
     password = "Sutada53"
 
-    
+    open_browser(driver)
 
-
-    
     try:
         login_gaikaex(driver, login_id, password)
         # ログイン後の処理
-        print('ログイン完了。')
+        print('✅ ログイン完了。')
     
         # ページ情報を表示（デバッグ用）
         get_page_source_info(driver)
         
-        # 新規注文画面に移動
-        #print("🔄 新規注文画面への移動を開始...")
         if navigate_to_new_order(driver):
-            print("✅ 新規注文画面への移動が成功しました")
+            # print("✅ 新規注文画面への移動が成功しました")
             
             # 画面遷移後の安定化処理
             time.sleep(2)  # 画面描画を十分に待つ（安定性向上）
@@ -358,10 +355,6 @@ def main():
             # IFO注文の実行例 
             operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
             
-            # IFO注文実行後は最終確認処理をスキップ
-            print("✅ IFO注文処理が完了しました")
-
-
         else:
             print("❌ 新規注文画面への移動に失敗しました")
         
