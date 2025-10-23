@@ -25,9 +25,11 @@ from place_order import (
     analyze_form_elements,
     get_order_frame_info,
     get_page_source_info,
-    navigate_to_order_correction,
-    get_order_correction_info,
-    quick_navigate_to_order_correction
+    quick_navigate_to_order_correction_ultra_fast,
+    get_order_numbers_with_links,
+    open_order_number_links_sequentially,
+    process_order_correction_by_pattern_single
+
 )
 
 from monitoring_rates import monitor_usdjpy_rate
@@ -356,6 +358,8 @@ def main():
                 print("⚠️  画面読み込みがタイムアウトしましたが、処理を続行します")
             
             print("初期メッセージの確認をチェックしてください。")
+            print("⏭️ 自動で続行します...")
+            time.sleep(1)  # 少し待機
             input("Enterキーを押して続行...")
 
             # Realtime注文の実行（超高速)
@@ -365,8 +369,88 @@ def main():
             #operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
             
             #注文訂正画面への移動と情報取得のテスト
-            quick_navigate_to_order_correction(driver)
-   
+            quick_navigate_to_order_correction_ultra_fast(driver)
+
+            # 注文番号リンクの取得と注文パターン判定処理
+            order_links = get_order_numbers_with_links(driver)
+            if order_links:
+                print(f"🔍 {len(order_links)}件の注文番号が見つかりました")
+                
+                # オーダー1の注文パターンをチェック
+                if len(order_links) >= 1:
+                    first_order = order_links[0]
+                    order_pattern = first_order['orderData'].get('orderPattern', '不明')
+                    order_number = first_order['orderNumber']
+                    
+                    print(f"📋 オーダー1 注文番号: {order_number}")
+                    print(f"🏷️  注文パターン: {order_pattern}")
+                    
+                    # 新しいパターン別処理関数を使用
+                    print("🎯 注文パターン別処理を開始します")
+                    
+                    # OCO注文の場合はテスト価格を設定
+                    if order_pattern == "OCO":
+                        print("📊 OCO注文のテスト価格を設定")
+                        test_limit_price = 153.800   # テスト用指値価格
+                        test_stop_price = 151.000    # テスト用逆指値価格
+                        print(f"💰 テスト価格 - 指値: {test_limit_price}, 逆指値: {test_stop_price}")
+                        success = process_order_correction_by_pattern_single(
+                            driver, 
+                            order_index=0, 
+                            limit_price=test_limit_price, 
+                            stop_price=test_stop_price
+                        )
+                    else:
+                        # 通常注文の場合は価格指定なし
+                        success = process_order_correction_by_pattern_single(driver, order_index=0)
+                    
+                    if success:
+                        print("✅ オーダー1の処理が完了しました")
+                        
+                        # OCO注文の場合はオーダー2の処理も実行
+                        if order_pattern == "OCO":
+                            print("\n" + "="*50)
+                            print("🔄 OCO注文のオーダー2処理を開始します")
+                            print("="*50)
+                            
+                            # 注文訂正画面に戻る
+                            print("📋 注文訂正画面に戻ります...")
+                            if quick_navigate_to_order_correction_ultra_fast(driver):
+                                
+                                # オーダー2の情報を取得
+                                order_links_2 = get_order_numbers_with_links(driver)
+                                if order_links_2 and len(order_links_2) >= 2:
+                                    second_order = order_links_2[1]  # オーダー2（インデックス1）
+                                    order_number_2 = second_order['orderNumber']
+                                    
+                                    print(f"📋 オーダー2 注文番号: {order_number_2}")
+                                    print(f"🏷️  注文パターン: OCO")
+                                    
+                                    # オーダー2の処理を実行
+                                    success_2 = process_order_correction_by_pattern_single(
+                                        driver, 
+                                        order_index=1,  # オーダー2
+                                        limit_price=test_limit_price, 
+                                        stop_price=test_stop_price
+                                    )
+                                    
+                                    if success_2:
+                                        print("✅ オーダー2の処理が完了しました")
+                                        print("🎉 OCO注文の両方のオーダー修正が完了しました！")
+                                    else:
+                                        print("❌ オーダー2の処理に失敗しました")
+                                else:
+                                    print("❌ オーダー2が見つかりません")
+                            else:
+                                print("❌ 注文訂正画面への戻りに失敗しました")
+                        
+                    else:
+                        print("❌ オーダー1の処理に失敗しました")
+                        
+                else:
+                    print("❌ オーダー1が見つかりません")
+            else:
+                print("📝 注文番号が見つかりませんでした")
 
         else:
             print("❌ 新規注文画面への移動に失敗しました")

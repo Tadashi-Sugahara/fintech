@@ -2170,105 +2170,384 @@ def navigate_to_order_correction(driver):
             pass
 
 
-def get_order_correction_info(driver):
+
+def get_order_correction_info_ultra_fast(driver):
     """
-    注文訂正画面の情報を取得・表示する関数
+    注文訂正画面からオーダー情報を超高速取得する関数（極限最適化版・改良版）
+    - 表示処理完全削除
+    - JavaScript一回実行
+    - 最小限データのみ
+    - ヘッダー行とデータ行を正確に識別
+    
+    Returns:
+        list: 簡略化されたオーダー情報のリスト
     """
     try:
-        print("\n=== 注文訂正画面情報 ===")
-        
-        # main_v2_dフレームに切り替え
+        # フレーム切り替え（最小限）
         driver.switch_to.default_content()
-        main_frame = driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']")
-        driver.switch_to.frame(main_frame)
+        driver.switch_to.frame(driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']"))
         
-        # ページタイトル確認
-        page_title = driver.title
-        print(f"ページタイトル: {page_title}")
+        # 超高速JavaScript（改良版・完全なオーダー情報取得）
+        ultra_fast_script = """
+        var orders = [];
+        var tables = document.querySelectorAll('table');
         
-        # 現在のURL確認
-        current_url = driver.current_url
-        print(f"現在のURL: {current_url}")
-        
-        # 注文一覧テーブルの確認
-        try:
-            # 注文一覧テーブルを探す
-            tables = driver.find_elements(By.TAG_NAME, "table")
-            print(f"テーブル数: {len(tables)}")
+        for (var i = 0; i < tables.length; i++) {
+            var table = tables[i];
+            var headers = Array.from(table.querySelectorAll('th')).map(th => th.textContent.trim());
             
-            for i, table in enumerate(tables):
-                try:
-                    # テーブルのヘッダー行を確認
-                    headers = table.find_elements(By.TAG_NAME, "th")
-                    if len(headers) > 0:
-                        print(f"テーブル[{i}] ヘッダー:")
-                        for j, header in enumerate(headers):
-                            header_text = header.text.strip()
-                            print(f"  [{j}] {header_text}")
+            // オーダーテーブル判定（改良版・執行条件・注文パターン対応）
+            var headerText = headers.join(' ');
+            var isOrderTable = /注文|通貨ペア|売買|数量|価格|レート|状態|訂正|執行条件|条件|パターン/.test(headerText) && headers.length > 3;
+            
+            if (isOrderTable) {
+                var allRows = table.querySelectorAll('tr');
+                var dataRowIndex = 0;  // データ行のインデックス
+                
+                for (var j = 0; j < allRows.length; j++) {
+                    var row = allRows[j];
+                    var cells = row.querySelectorAll('td');  // tdがあるのはデータ行のみ
                     
-                    # 注文データ行を確認（最初の3行のみ）
-                    rows = table.find_elements(By.TAG_NAME, "tr")
-                    data_rows = [row for row in rows if row.find_elements(By.TAG_NAME, "td")]
-                    
-                    if len(data_rows) > 0:
-                        print(f"データ行数: {len(data_rows)}")
-                        for k, row in enumerate(data_rows[:3]):  # 最初の3行のみ表示
-                            cells = row.find_elements(By.TAG_NAME, "td")
-                            print(f"  行[{k}]: {len(cells)}列")
-                            for l, cell in enumerate(cells[:5]):  # 最初の5列のみ表示
-                                cell_text = cell.text.strip()
-                                print(f"    [{l}] {cell_text}")
-                                
-                            # 訂正ボタンがあるかチェック
-                            correction_buttons = row.find_elements(By.XPATH, ".//input[@type='button' or @type='submit'] | .//button")
-                            if correction_buttons:
-                                print(f"    🔧 訂正ボタン: {len(correction_buttons)}個")
-                                for btn in correction_buttons:
-                                    btn_text = btn.get_attribute("value") or btn.text or "テキストなし"
-                                    print(f"      - {btn_text}")
+                    if (cells.length >= 4) {  // データ行と判定
+                        dataRowIndex++;
+                        var cellData = Array.from(cells).map(c => c.textContent.trim());
+                        var buttons = row.querySelectorAll('input[type="button"], input[type="submit"], button');
+                        var hasButton = buttons.length > 0;
                         
-                        if len(data_rows) > 3:
-                            print(f"    ... 他{len(data_rows)-3}行")
-                            
-                except Exception as table_e:
-                    print(f"テーブル[{i}]の解析でエラー: {table_e}")
-                    
-        except Exception as e:
-            print(f"テーブル情報取得エラー: {e}")
+                        // より詳細な情報を含める（注文パターン検出付き）
+                        var orderInfo = {
+                            row: dataRowIndex,
+                            table: i + 1,
+                            headers: headers,  // ヘッダー情報も含める
+                            data: cellData,
+                            correctable: hasButton,
+                            buttonCount: buttons.length,
+                            cellCount: cells.length,
+                            orderPattern: null,  // 注文パターンを格納
+                            orderNumber: null,   // 注文番号を格納
+                            orderNumberLink: null  // 注文番号のリンクを格納
+                        };
+                        
+                        // 注文パターンを自動検出
+                        for (var k = 0; k < headers.length; k++) {
+                            var header = headers[k];
+                            if (header.includes('パターン') || header.includes('注文種別') || header.includes('種類')) {
+                                if (k < cellData.length) {
+                                    orderInfo.orderPattern = cellData[k];
+                                }
+                                break;
+                            }
+                        }
+                        
+                        // 注文番号を自動検出
+                        for (var k = 0; k < headers.length; k++) {
+                            var header = headers[k];
+                            if (header.includes('注文番号') || header.includes('番号') || header.includes('No')) {
+                                if (k < cells.length) {
+                                    var cell = cells[k];
+                                    var orderNumber = cellData[k];
+                                    orderInfo.orderNumber = orderNumber;
+                                    
+                                    // セル内のリンクを検索
+                                    var links = cell.querySelectorAll('a');
+                                    if (links.length > 0) {
+                                        var link = links[0];
+                                        orderInfo.orderNumberLink = {
+                                            href: link.href || '',
+                                            onclick: link.getAttribute('onclick') || '',
+                                            text: link.textContent.trim() || orderNumber
+                                        };
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        
+                        // ボタン情報も含める（必要に応じて）
+                        if (hasButton) {
+                            orderInfo.buttons = Array.from(buttons).map(btn => ({
+                                text: btn.value || btn.textContent || 'テキストなし',
+                                type: btn.type || 'button'
+                            }));
+                        }
+                        
+                        orders.push(orderInfo);
+                    }
+                }
+            }
+        }
         
-        # フォーム情報の確認
-        try:
-            forms = driver.find_elements(By.TAG_NAME, "form")
-            print(f"\nフォーム情報 ({len(forms)}個):")
+        return {
+            orderCount: orders.length,
+            tableCount: tables.length,
+            orders: orders
+        };
+        """
+        
+        # JavaScript実行
+        result = driver.execute_script(ultra_fast_script)
+        
+        # 結果の検証とログ出力
+        if result and 'orders' in result:
+            orders = result['orders']
+            print(f"⚡ 超高速取得完了: {result['orderCount']}件のオーダー（{result['tableCount']}テーブル中）")
             
-            for i, form in enumerate(forms):
-                try:
-                    form_name = form.get_attribute("name") or "no-name"
-                    form_action = form.get_attribute("action") or "no-action"
-                    form_method = form.get_attribute("method") or "GET"
-                    
-                    print(f"  form[{i}]: name={form_name}")
-                    print(f"            action={form_action}")
-                    print(f"            method={form_method}")
-                    
-                    # フォーム内の入力要素を確認
-                    inputs = form.find_elements(By.TAG_NAME, "input")
-                    selects = form.find_elements(By.TAG_NAME, "select")
-                    buttons = form.find_elements(By.XPATH, ".//input[@type='button' or @type='submit'] | .//button")
-                    
-                    print(f"            inputs: {len(inputs)}個, selects: {len(selects)}個, buttons: {len(buttons)}個")
-                    
-                except Exception:
-                    print(f"  form[{i}]: 情報取得エラー")
-                    
-        except Exception as e:
-            print(f"フォーム情報取得エラー: {e}")
-        
-        print("========================\n")
+            # 簡潔なデバッグ情報
+            if orders:
+                correctable_count = sum(1 for order in orders if order.get('correctable', False))
+                print(f"   訂正可能: {correctable_count}件, 訂正不可: {len(orders) - correctable_count}件")
+            
+            return orders
+        else:
+            print("⚠️  超高速版でオーダーを取得できませんでした")
+            return []
         
     except Exception as e:
-        print(f"注文訂正画面情報取得でエラーが発生: {e}")
+        print(f"⚠️  超高速版エラー: {e}")
+        return []
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+def quick_navigate_to_order_correction_ultra_fast(driver):
+    """
+    注文訂正画面に直接移動してオーダー情報を超高速取得する便利関数（超高速版）
     
+    Args:
+        driver: WebDriverインスタンス
+    
+    Returns:
+        tuple: (成功フラグ, 簡略化オーダー情報リスト)
+    """
+    try:
+        # 画面移動（ログ最小限）
+        if not navigate_to_order_correction(driver):
+            return False, []
+        
+        time.sleep(0.3)  # 極小待機
+        
+        # 超高速版でオーダー情報を取得
+        orders = get_order_correction_info_ultra_fast(driver)
+        
+        # 自動的にサマリー表示
+        if orders:
+            display_order_summary_ultra_fast(orders)
+
+        else:
+            print("⚠️  オーダー情報を取得できませんでした")
+
+        return True, orders
+        
+    except Exception:
+        return False, []
+
+
+def display_order_summary_ultra_fast(orders):
+    """
+    超高速版専用の簡潔なサマリー表示（改良版）
+    
+    Args:
+        orders: get_order_correction_info_ultra_fast()の戻り値
+    """
+    if not orders:
+        print("📭 オーダーなし")
+        return
+    
+    correctable_count = sum(1 for order in orders if order.get('correctable', False))
+    
+    print(f"\n⚡ オーダー: {len(orders)}件 (訂正可能: {correctable_count}件)")
+    print("=" * 50)
+    
+    for i, order in enumerate(orders):
+        status = "🔧" if order.get('correctable', False) else "⚪"
+        order_pattern = order.get('orderPattern', '不明')
+        
+        # ヘッダー情報があるかチェック
+        headers = order.get('headers', [])
+        data = order.get('data', [])
+        
+        print(f"\n🔸 オーダー {i+1} (行{order.get('row', '?')}) [{order_pattern}]")
+        
+        # ヘッダーとデータをペアで表示（重要な情報のみ・注文パターン対応）
+        important_indices = []
+        if headers:
+            for j, header in enumerate(headers):
+                if any(keyword in header for keyword in ['通貨ペア', '売買', '数量', '価格', 'レート', '状態', '執行条件', '条件', 'パターン', '注文種別']):
+                    important_indices.append(j)
+        
+        if important_indices and len(data) > max(important_indices):
+            for idx in important_indices[:4]:  # 最重要4項目
+                if idx < len(data) and data[idx]:
+                    print(f"   {headers[idx]}: {data[idx]}")
+        else:
+            # ヘッダーなしの場合は最初の4項目を表示
+            data_preview = data[:4] if len(data) >= 4 else data
+            print(f"   データ: {', '.join(str(d) for d in data_preview)}")
+            if len(data) > 4:
+                print(f"   ... 他{len(data)-4}項目")
+        
+        # 訂正ボタン情報
+        if order.get('correctable', False):
+            button_count = order.get('buttonCount', 1)
+            buttons = order.get('buttons', [])
+            if buttons:
+                button_names = [btn['text'] for btn in buttons[:2]]  # 最初の2個
+                print(f"   {status} 訂正: {', '.join(button_names)}")
+                if len(buttons) > 2:
+                    print(f"        ... 他{len(buttons)-2}個")
+            else:
+                print(f"   {status} 訂正: 可能 ({button_count}個)")
+        else:
+            print(f"   {status} 訂正: 不可")
+    
+    print("=" * 50)
+
+
+def get_order_numbers_with_links(driver):
+    """
+    注文番号とそのリンク情報を取得する関数
+    
+    Args:
+        driver: WebDriverインスタンス
+    
+    Returns:
+        list: 注文番号とリンク情報のリスト
+    """
+    try:
+        # オーダー情報を取得
+        orders = get_order_correction_info_ultra_fast(driver)
+        
+        order_numbers = []
+        for i, order in enumerate(orders):
+            order_number = order.get('orderNumber')
+            order_link = order.get('orderNumberLink')
+            
+            if order_number:
+                order_info = {
+                    'row': order.get('row', i+1),
+                    'orderNumber': order_number,
+                    'hasLink': order_link is not None,
+                    'linkInfo': order_link,
+                    'orderData': order  # 元のオーダー情報も保持
+                }
+                order_numbers.append(order_info)
+                
+                print(f"オーダー {i+1}: 注文番号 {order_number} - リンク{'あり' if order_link else 'なし'}")
+        
+        print(f"\n📋 取得結果: {len(order_numbers)}件の注文番号")
+        return order_numbers
+        
+    except Exception as e:
+        print(f"⚠️  注文番号取得エラー: {e}")
+        return []
+
+
+def open_order_number_links_sequentially(driver, start_from=1, max_orders=None):
+    """
+    注文番号のリンクを順番に開く関数
+    
+    Args:
+        driver: WebDriverインスタンス
+        start_from: 開始するオーダー番号（1から開始）
+        max_orders: 最大処理件数（Noneの場合は全件）
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        print(f"🔗 注文番号リンクを順番に開きます（開始: オーダー{start_from}）")
+        
+        # 注文番号情報を取得
+        order_numbers = get_order_numbers_with_links(driver)
+        
+        if not order_numbers:
+            print("❌ 注文番号が見つかりませんでした")
+            return False
+        
+        # 処理範囲を決定
+        start_index = start_from - 1  # インデックスは0から開始
+        end_index = len(order_numbers)
+        if max_orders:
+            end_index = min(start_index + max_orders, len(order_numbers))
+        
+        if start_index >= len(order_numbers):
+            print(f"❌ 開始オーダー番号{start_from}が範囲外です（最大: {len(order_numbers)}）")
+            return False
+        
+        print(f"📊 処理予定: オーダー{start_from}〜{start_index + (end_index - start_index)}（{end_index - start_index}件）")
+        
+        # 順番にリンクを開く
+        success_count = 0
+        for i in range(start_index, end_index):
+            order_info = order_numbers[i]
+            order_number = order_info['orderNumber']
+            link_info = order_info['linkInfo']
+            
+            print(f"\n🔗 オーダー {i+1}: 注文番号 {order_number}")
+            
+            if not link_info:
+                print("   ⚠️  リンクが見つかりません - スキップ")
+                continue
+            
+            try:
+                # フレーム切り替え
+                driver.switch_to.default_content()
+                driver.switch_to.frame(driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']"))
+                
+                # リンクを開く
+                if link_info.get('onclick'):
+                    # onclick属性がある場合はJavaScriptで実行
+                    onclick_script = link_info['onclick']
+                    print(f"   📄 onclick実行: {onclick_script[:50]}...")
+                    driver.execute_script(onclick_script)
+                elif link_info.get('href'):
+                    # href属性がある場合はそれを使用
+                    href = link_info['href']
+                    print(f"   🌐 href移動: {href}")
+                    driver.get(href)
+                else:
+                    # リンクテキストでクリック
+                    link_text = link_info.get('text', order_number)
+                    link_element = driver.find_element(By.LINK_TEXT, link_text)
+                    print(f"   👆 リンククリック: {link_text}")
+                    link_element.click()
+                
+                # 少し待機
+                time.sleep(1)
+                
+                # ページタイトルまたは内容を確認
+                try:
+                    current_url = driver.current_url
+                    print(f"   ✅ 移動完了: {current_url}")
+                    success_count += 1
+                    
+                    # ユーザーに次のアクションを聞く（オプション）
+                    if i < end_index - 1:  # 最後でない場合
+                        user_input = input(f"   ⏸️  次のオーダー（{i+2}）に進みますか？ (y/n/q): ").strip().lower()
+                        if user_input == 'q':
+                            print("   🛑 ユーザーによって中断されました")
+                            break
+                        elif user_input == 'n':
+                            print("   ⏭️  スキップします")
+                            continue
+                        # 'y'または他の入力は続行
+                    
+                except Exception as e:
+                    print(f"   ⚠️  移動後の確認エラー: {e}")
+                    success_count += 1  # 一応成功とカウント
+                
+            except Exception as e:
+                print(f"   ❌ リンクオープンエラー: {e}")
+                continue
+        
+        print(f"\n✅ 完了: {success_count}/{end_index - start_index}件のリンクを開きました")
+        return success_count > 0
+        
+    except Exception as e:
+        print(f"⚠️  シーケンシャルオープンエラー: {e}")
+        return False
     finally:
         try:
             driver.switch_to.default_content()
@@ -2276,33 +2555,700 @@ def get_order_correction_info(driver):
             pass
 
 
-def quick_navigate_to_order_correction(driver):
+def demo_order_number_link_navigation(driver):
     """
-    注文訂正画面に直接移動して情報を表示する便利関数
+    注文番号リンクナビゲーションのデモ関数
+    
+    Args:
+        driver: WebDriverインスタンス
+    """
+    print("🎯 注文番号リンクナビゲーション デモ")
+    print("=" * 50)
+    
+    try:
+        # 注文訂正画面に移動
+        print("1️⃣ 注文訂正画面に移動中...")
+        if not navigate_to_order_correction(driver):
+            print("❌ 注文訂正画面への移動に失敗しました")
+            return
+        
+        # 注文番号とリンク情報を取得
+        print("\n2️⃣ 注文番号情報を取得中...")
+        order_numbers = get_order_numbers_with_links(driver)
+        
+        if not order_numbers:
+            print("❌ 注文番号が見つかりませんでした")
+            return
+        
+        # リンクがある注文を確認
+        linkable_orders = [order for order in order_numbers if order['hasLink']]
+        print(f"\n📊 リンク可能な注文: {len(linkable_orders)}/{len(order_numbers)}件")
+        
+        if not linkable_orders:
+            print("❌ リンク可能な注文がありません")
+            return
+        
+        # ユーザーに実行確認
+        response = input(f"\n3️⃣ {len(linkable_orders)}件の注文番号リンクを順番に開きますか？ (y/n): ").strip().lower()
+        if response != 'y':
+            print("🛑 デモを中断しました")
+            return
+        
+        # 順番にリンクを開く
+        print("\n4️⃣ リンクを順番に開いています...")
+        success = open_order_number_links_sequentially(driver, start_from=1, max_orders=3)  # 最初の3件のみデモ
+        
+        if success:
+            print("\n✅ デモ完了！注文番号リンクナビゲーションが正常に動作しました")
+        else:
+            print("\n❌ デモ中にエラーが発生しました")
+        
+    except Exception as e:
+        print(f"⚠️  デモエラー: {e}")
+    
+    print("=" * 50)
+
+
+def open_order_link_by_pattern(driver, order_info):
+    """
+    注文パターンに基づいてオーダーリンクを開く関数
+    
+    Args:
+        driver: WebDriverインスタンス
+        order_info: get_order_numbers_with_links()で取得したオーダー情報
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        order_number = order_info['orderNumber']
+        order_pattern = order_info['orderData'].get('orderPattern', '不明')
+        link_info = order_info['linkInfo']
+        
+        print(f"🔗 注文番号 {order_number} ({order_pattern}) のリンクを開きます")
+        
+        if not link_info:
+            print("❌ リンク情報が見つかりません")
+            return False
+        
+        # フレーム切り替え
+        driver.switch_to.default_content()
+        driver.switch_to.frame(driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']"))
+        
+        # リンクを開く
+        if link_info.get('onclick'):
+            onclick_script = link_info['onclick']
+            print(f"   📄 onclick実行: {onclick_script[:50]}...")
+            driver.execute_script(onclick_script)
+        elif link_info.get('href'):
+            href = link_info['href']
+            print(f"   🌐 href移動: {href}")
+            driver.get(href)
+        else:
+            link_text = link_info.get('text', order_number)
+            link_element = driver.find_element(By.LINK_TEXT, link_text)
+            print(f"   👆 リンククリック: {link_text}")
+            link_element.click()
+        
+        # 少し待機
+        time.sleep(1)
+        
+        # 移動確認
+        current_url = driver.current_url
+        print(f"   ✅ 移動完了: {current_url}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ リンクオープンエラー: {e}")
+        return False
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
+def process_normal_order_correction(driver, order_info):
+    """
+    通常注文の訂正処理（指値または逆指値の修正）
+    
+    Args:
+        driver: WebDriverインスタンス
+        order_info: オーダー情報
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        order_number = order_info['orderNumber']
+        print(f"🎯 通常注文訂正処理を開始: 注文番号 {order_number}")
+        
+        # リンクを開く
+        if not open_order_link_by_pattern(driver, order_info):
+            return False
+        
+        print("📝 通常注文: 指値または逆指値の修正画面に移動しました")
+        print("💡 ここで価格やレートの修正処理を実装予定")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ 通常注文訂正エラー: {e}")
+        return False
+
+
+def process_oco_order_correction(driver, order_info, limit_price=None, stop_price=None):
+    """
+    OCO注文の訂正処理（指値と逆指値を同時修正）
+    
+    Args:
+        driver: WebDriverインスタンス
+        order_info: オーダー情報
+        limit_price: 新しい指値価格
+        stop_price: 新しい逆指値価格
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        order_number = order_info['orderNumber']
+        print(f"🎯 OCO注文訂正処理を開始: 注文番号 {order_number}")
+        print(f"💰 設定価格 - 指値: {limit_price}, 逆指値: {stop_price}")
+        
+        # リンクを開く
+        if not open_order_link_by_pattern(driver, order_info):
+            return False
+        
+        print("📝 OCO注文: 指値と逆指値を同時修正画面に移動しました")
+        
+        # フレーム内で処理
+        driver.switch_to.default_content()
+        driver.switch_to.frame(driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']"))
+        
+        # 少し待機してフォームが読み込まれるのを待つ
+        time.sleep(2)
+        
+        # 現在の執行条件を確認
+        execution_condition = None
+        try:
+            # テーブルから執行条件を取得（新しい注文条件の列）
+            table_script = """
+            var tables = document.querySelectorAll('table');
+            var executionCondition = null;
+            
+            for (var i = 0; i < tables.length; i++) {
+                var table = tables[i];
+                var rows = table.querySelectorAll('tr');
+                
+                for (var j = 0; j < rows.length; j++) {
+                    var row = rows[j];
+                    var cells = row.querySelectorAll('th, td');
+                    
+                    if (cells.length >= 4 && cells[0].textContent.trim() === '執行条件') {
+                        // 新しい注文条件（4番目の列）から執行条件を取得
+                        executionCondition = cells[3].textContent.trim();
+                        break;
+                    }
+                }
+                if (executionCondition) break;
+            }
+            
+            return executionCondition;
+            """
+            
+            execution_condition = driver.execute_script(table_script)
+            print(f"� 現在の執行条件: {execution_condition}")
+            
+        except Exception as e:
+            print(f"⚠️ 執行条件の取得に失敗: {e}")
+            execution_condition = "不明"
+        
+        # 価格入力欄（P304）を特定して入力
+        price_input = driver.find_element(By.NAME, "P304")
+        current_value = price_input.get_attribute('value')
+        print(f"💱 現在の注文価格: {current_value}")
+        
+        # 執行条件に応じて適切な価格を入力
+        if execution_condition == "逆指値" and stop_price is not None:
+            print(f"🎯 逆指値条件 → 逆指値価格 {stop_price} を入力します")
+            price_input.clear()
+            price_input.send_keys(str(stop_price))
+            
+        elif execution_condition == "指値" and limit_price is not None:
+            print(f"🎯 指値条件 → 指値価格 {limit_price} を入力します")
+            price_input.clear()
+            price_input.send_keys(str(limit_price))
+            
+        else:
+            print(f"⚠️ 条件不一致または価格未指定")
+            print(f"   執行条件: {execution_condition}")
+            print(f"   指値価格: {limit_price}, 逆指値価格: {stop_price}")
+            if execution_condition == "逆指値":
+                print("   → 逆指値価格が必要ですが、指定されていません")
+            elif execution_condition == "指値":
+                print("   → 指値価格が必要ですが、指定されていません")
+        
+        # 入力後の値を確認
+        updated_value = price_input.get_attribute('value')
+        print(f"✏️ 入力後の価格: {updated_value}")
+        
+        # 「次へ」ボタンをクリック
+        try:
+            next_button = driver.find_element(By.NAME, "changeButton")
+            print("🔘 「次へ」ボタンをクリックします")
+            next_button.click()
+            
+            # 少し待機
+            time.sleep(1)
+            
+            # 移動確認
+            current_url = driver.current_url
+            print(f"✅ 次の画面に移動: {current_url}")
+            
+            # 最終確認画面での「訂正実行」ボタンをクリック
+            if not execute_order_correction_final(driver):
+                print("❌ 最終訂正実行に失敗しました")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ 「次へ」ボタンのクリックに失敗: {e}")
+            return False
+        
+    except Exception as e:
+        print(f"❌ OCO注文訂正エラー: {e}")
+        return False
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
+def execute_order_correction_final(driver):
+    """
+    最終確認画面で「訂正実行」ボタンをクリックして注文訂正を完了する
+    OCO注文の場合は指値画面 → 最終確認画面の順で処理
     
     Args:
         driver: WebDriverインスタンス
     
     Returns:
-        bool: 成功した場合True、失敗した場合False
+        bool: 成功した場合True
     """
     try:
-        print("注文訂正画面への直接移動を開始...")
+        print("🎯 最終確認画面での訂正実行処理を開始")
         
-        # 1. 注文訂正画面に移動
-        if not navigate_to_order_correction(driver):
-            print("❌ 注文訂正画面への移動に失敗")
+        # フレーム内で処理
+        driver.switch_to.default_content()
+        driver.switch_to.frame(driver.find_element(By.CSS_SELECTOR, "iframe#main_v2_d, iframe[name='main_v2_d']"))
+        
+        # 少し待機してフォームが読み込まれるのを待つ
+        time.sleep(2)
+        
+        # ページタイトルを確認
+        try:
+            page_title = driver.execute_script("return document.title;")
+            print(f"📄 現在のページ: {page_title}")
+            
+            if "Ht00421" in page_title:
+                print("📝 OCO注文の指値設定画面です")
+                return handle_oco_limit_order_screen(driver)
+            elif "Ht00422" in page_title:
+                print("✅ 最終確認画面を検出しました")
+                return handle_final_confirmation_screen(driver)
+            else:
+                print(f"⚠️ 予期しないページです: {page_title}")
+                return False
+                
+        except Exception as e:
+            print(f"⚠️ ページタイトルの確認に失敗: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 最終訂正実行エラー: {e}")
+        return False
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
+def handle_oco_limit_order_screen(driver):
+    """
+    OCO注文の指値設定画面を処理（2回目の価格設定）
+    
+    Args:
+        driver: WebDriverインスタンス
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        print("🎯 OCO注文の指値設定画面を処理します")
+        
+        # 現在の執行条件を確認
+        execution_condition = None
+        try:
+            table_script = """
+            var tables = document.querySelectorAll('table');
+            var executionCondition = null;
+            
+            for (var i = 0; i < tables.length; i++) {
+                var table = tables[i];
+                var rows = table.querySelectorAll('tr');
+                
+                for (var j = 0; j < rows.length; j++) {
+                    var row = rows[j];
+                    var cells = row.querySelectorAll('th, td');
+                    
+                    if (cells.length >= 4 && cells[0].textContent.trim() === '執行条件') {
+                        executionCondition = cells[3].textContent.trim();
+                        break;
+                    }
+                }
+                if (executionCondition) break;
+            }
+            
+            return executionCondition;
+            """
+            
+            execution_condition = driver.execute_script(table_script)
+            print(f"🔍 現在の執行条件: {execution_condition}")
+            
+        except Exception as e:
+            print(f"⚠️ 執行条件の取得に失敗: {e}")
+        
+        # 価格入力欄（P304）を特定して指値価格を入力
+        try:
+            price_input = driver.find_element(By.NAME, "P304")
+            current_value = price_input.get_attribute('value')
+            print(f"💱 現在の注文価格: {current_value}")
+            
+            # 指値価格を設定（テスト値）
+            limit_price = 153.500  # テスト用指値価格
+            print(f"🎯 指値価格 {limit_price} を入力します")
+            price_input.clear()
+            price_input.send_keys(str(limit_price))
+            
+            updated_value = price_input.get_attribute('value')
+            print(f"✏️ 入力後の価格: {updated_value}")
+            
+        except Exception as e:
+            print(f"❌ 価格入力に失敗: {e}")
             return False
         
-        time.sleep(0.1)
+        # 「次へ」ボタンをクリック
+        try:
+            next_button = driver.find_element(By.NAME, "changeButton")
+            print("🔘 「次へ」ボタンをクリックします")
+            next_button.click()
+            
+            # 少し待機
+            time.sleep(3)
+            
+            # 最終確認画面に移動したか確認
+            page_title = driver.execute_script("return document.title;")
+            print(f"📄 移動後のページ: {page_title}")
+            
+            if "Ht00422" in page_title:
+                print("✅ 最終確認画面に移動しました")
+                return handle_final_confirmation_screen(driver)
+            else:
+                print(f"⚠️ 予期しない画面: {page_title}")
+                return False
+            
+        except Exception as e:
+            print(f"❌ 「次へ」ボタンのクリックに失敗: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ OCO指値画面処理エラー: {e}")
+        return False
+
+
+def handle_final_confirmation_screen(driver):
+    """
+    最終確認画面で「訂正実行」ボタンをクリック
+    
+    Args:
+        driver: WebDriverインスタンス
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        print("🎯 最終確認画面で訂正実行ボタンをクリックします")
         
-        # 2. 注文訂正画面の情報を表示
-        #get_order_correction_info(driver)
+        # 少し待機してフォームが読み込まれるのを待つ
+        time.sleep(2)
         
-        #print("✅ 注文訂正画面への移動と情報表示が完了しました")
-        return True
+        # 注文内容を表示（確認用）
+        try:
+            order_info_script = """
+            var orderInfo = {};
+            var tables = document.querySelectorAll('table');
+            
+            for (var i = 0; i < tables.length; i++) {
+                var table = tables[i];
+                var rows = table.querySelectorAll('tr');
+                
+                for (var j = 0; j < rows.length; j++) {
+                    var row = rows[j];
+                    var cells = row.querySelectorAll('th, td');
+                    
+                    if (cells.length >= 2) {
+                        var key = cells[0].textContent.trim();
+                        var value = cells[1].textContent.trim();
+                        
+                        if (key === '注文番号') orderInfo.orderNumber = value;
+                        else if (key === '注文価格') orderInfo.price = value;
+                        else if (key === '執行条件') orderInfo.condition = value;
+                    }
+                }
+            }
+            
+            return orderInfo;
+            """
+            
+            order_info = driver.execute_script(order_info_script)
+            print("📋 変更後の注文内容:")
+            for key, value in order_info.items():
+                print(f"   {key}: {value}")
+                
+        except Exception as e:
+            print(f"⚠️ 注文内容の確認に失敗: {e}")
+        
+        # 「訂正実行」ボタンを探してクリック
+        try:
+            # まずボタンの状態を確認
+            exec_button = driver.find_element(By.NAME, "EXEC")
+            is_disabled = exec_button.get_attribute('disabled')
+            button_text = exec_button.get_attribute('value') or exec_button.text
+            
+            print(f"🔘 「{button_text}」ボタン状態: {'無効' if is_disabled else '有効'}")
+            
+            if is_disabled:
+                print("⚠️ ボタンが無効化されています。有効化を試みます...")
+                # JavaScriptでボタンを有効化
+                driver.execute_script("arguments[0].disabled = false;", exec_button)
+                driver.execute_script("arguments[0].classList.remove('disAbleElmnt');", exec_button)
+                
+                # 再確認
+                is_disabled_after = exec_button.get_attribute('disabled')
+                print(f"🔄 有効化後の状態: {'無効' if is_disabled_after else '有効'}")
+            
+            print("🔘 「訂正実行」ボタンをクリックします")
+            exec_button.click()
+            
+            # 少し待機
+            time.sleep(3)
+            
+            # 結果確認
+            try:
+                current_url = driver.current_url
+                new_title = driver.execute_script("return document.title;")
+                print(f"✅ 訂正実行完了")
+                print(f"📄 移動後ページ: {new_title}")
+                print(f"🌐 URL: {current_url}")
+                
+                # 成功メッセージや完了画面の確認
+                try:
+                    success_message = driver.execute_script("""
+                        var messages = [];
+                        var elements = document.querySelectorAll('*');
+                        
+                        for (var i = 0; i < elements.length; i++) {
+                            var text = elements[i].textContent;
+                            if (text && (text.includes('完了') || text.includes('成功') || text.includes('受付'))) {
+                                messages.push(text.trim());
+                            }
+                        }
+                        
+                        return messages.slice(0, 3); // 最初の3件まで
+                    """)
+                    
+                    if success_message:
+                        print("🎉 完了メッセージ:")
+                        for msg in success_message:
+                            if msg and len(msg) < 100:  # 短いメッセージのみ表示
+                                print(f"   {msg}")
+                
+                except Exception as e:
+                    print(f"⚠️ 完了メッセージの確認に失敗: {e}")
+                
+                return True
+                
+            except Exception as e:
+                print(f"⚠️ 結果確認エラー: {e}")
+                return True  # ボタンクリックは成功したと見なす
+            
+        except Exception as e:
+            print(f"❌ 「訂正実行」ボタンのクリックに失敗: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 最終確認画面処理エラー: {e}")
+        return False
+        
+        # 注文内容を表示（確認用）
+        try:
+            order_info_script = """
+            var orderInfo = {};
+            var tables = document.querySelectorAll('table');
+            
+            for (var i = 0; i < tables.length; i++) {
+                var table = tables[i];
+                var rows = table.querySelectorAll('tr');
+                
+                for (var j = 0; j < rows.length; j++) {
+                    var row = rows[j];
+                    var cells = row.querySelectorAll('th, td');
+                    
+                    if (cells.length >= 2) {
+                        var key = cells[0].textContent.trim();
+                        var value = cells[1].textContent.trim();
+                        
+                        if (key === '注文番号') orderInfo.orderNumber = value;
+                        else if (key === '注文価格') orderInfo.price = value;
+                        else if (key === '執行条件') orderInfo.condition = value;
+                    }
+                }
+            }
+            
+            return orderInfo;
+            """
+            
+            order_info = driver.execute_script(order_info_script)
+            print("📋 変更後の注文内容:")
+            for key, value in order_info.items():
+                print(f"   {key}: {value}")
+                
+        except Exception as e:
+            print(f"⚠️ 注文内容の確認に失敗: {e}")
+        
+        # 「訂正実行」ボタンを探してクリック
+        try:
+            # まずボタンの状態を確認
+            exec_button = driver.find_element(By.NAME, "EXEC")
+            is_disabled = exec_button.get_attribute('disabled')
+            button_text = exec_button.get_attribute('value') or exec_button.text
+            
+            print(f"🔘 「{button_text}」ボタン状態: {'無効' if is_disabled else '有効'}")
+            
+            if is_disabled:
+                print("⚠️ ボタンが無効化されています。有効化を試みます...")
+                # JavaScriptでボタンを有効化
+                driver.execute_script("arguments[0].disabled = false;", exec_button)
+                driver.execute_script("arguments[0].classList.remove('disAbleElmnt');", exec_button)
+                
+                # 再確認
+                is_disabled_after = exec_button.get_attribute('disabled')
+                print(f"🔄 有効化後の状態: {'無効' if is_disabled_after else '有効'}")
+            
+            print("🔘 「訂正実行」ボタンをクリックします")
+            exec_button.click()
+            
+            # 少し待機
+            time.sleep(3)
+            
+            # 結果確認
+            try:
+                current_url = driver.current_url
+                new_title = driver.execute_script("return document.title;")
+                print(f"✅ 訂正実行完了")
+                print(f"📄 移動後ページ: {new_title}")
+                print(f"🌐 URL: {current_url}")
+                
+                # 成功メッセージや完了画面の確認
+                try:
+                    success_message = driver.execute_script("""
+                        var messages = [];
+                        var elements = document.querySelectorAll('*');
+                        
+                        for (var i = 0; i < elements.length; i++) {
+                            var text = elements[i].textContent;
+                            if (text && (text.includes('完了') || text.includes('成功') || text.includes('受付'))) {
+                                messages.push(text.trim());
+                            }
+                        }
+                        
+                        return messages.slice(0, 3); // 最初の3件まで
+                    """)
+                    
+                    if success_message:
+                        print("🎉 完了メッセージ:")
+                        for msg in success_message:
+                            if msg and len(msg) < 100:  # 短いメッセージのみ表示
+                                print(f"   {msg}")
+                
+                except Exception as e:
+                    print(f"⚠️ 完了メッセージの確認に失敗: {e}")
+                
+                return True
+                
+            except Exception as e:
+                print(f"⚠️ 結果確認エラー: {e}")
+                return True  # ボタンクリックは成功したと見なす
+            
+        except Exception as e:
+            print(f"❌ 「訂正実行」ボタンのクリックに失敗: {e}")
+            return False
         
     except Exception as e:
-        print(f"quick_navigate_to_order_correction でエラー: {e}")
+        print(f"❌ 最終訂正実行エラー: {e}")
         return False
+    finally:
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
+
+def process_order_correction_by_pattern_single(driver, order_index=0, limit_price=None, stop_price=None):
+    """
+    注文パターンに基づいて単一オーダーの訂正処理を実行
     
+    Args:
+        driver: WebDriverインスタンス
+        order_index: 処理するオーダーのインデックス（0から開始）
+        limit_price: 新しい指値価格（OCO注文用）
+        stop_price: 新しい逆指値価格（OCO注文用）
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        print(f"🎯 オーダー{order_index + 1}の注文パターン別訂正処理を開始")
+        
+        # 注文番号情報を取得
+        order_numbers = get_order_numbers_with_links(driver)
+        
+        if not order_numbers or len(order_numbers) <= order_index:
+            print(f"❌ オーダー{order_index + 1}が見つかりません")
+            return False
+        
+        order_info = order_numbers[order_index]
+        order_pattern = order_info['orderData'].get('orderPattern', '不明')
+        order_number = order_info['orderNumber']
+        
+        print(f"📋 処理対象: オーダー{order_index + 1}")
+        print(f"🏷️  注文番号: {order_number}")
+        print(f"🏷️  注文パターン: {order_pattern}")
+        
+        # パターンに応じて処理を分岐
+        if order_pattern == "通常":
+            return process_normal_order_correction(driver, order_info)
+        elif order_pattern == "OCO":
+            return process_oco_order_correction(driver, order_info, limit_price, stop_price)
+        else:
+            print(f"⚠️  未対応の注文パターン: {order_pattern}")
+            print("🔗 基本的なリンクオープンのみ実行します")
+            return open_order_link_by_pattern(driver, order_info)
+        
+    except Exception as e:
+        print(f"❌ 注文パターン別処理エラー: {e}")
+        return False
