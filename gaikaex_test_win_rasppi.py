@@ -43,6 +43,7 @@ import sys
 # グローバルドライバー変数（終了処理用）
 global global_driver
 global driver
+driver = None
 global_driver = None
 
 def cleanup_on_exit():
@@ -51,15 +52,13 @@ def cleanup_on_exit():
 
 # プログラム終了時の自動クリーンアップを登録（何もしない）
 atexit.register(cleanup_on_exit)
-
-
-
 def open_browser():
+    global driver
     options = webdriver.ChromeOptions()
     print("Chormeを起動します。")
         
     # Ctrl+Cでプログラム終了
-    print("� FXトレーディングシステムを開始します")
+    print("📈 FXトレーディングシステムを開始します")
     print("💡 Ctrl+C でプログラムを終了できます\n")
 
         # ブラウザ実行ファイルは環境変数で上書き可能
@@ -314,18 +313,25 @@ def open_browser():
     
     if not driver:
         print("❌ ブラウザ起動に完全に失敗しました")
-        return
+        return None
     
     # グローバル変数に設定（終了処理用）
+    global global_driver
     global_driver = driver
+    return driver
 
 
 def main():
+    global driver
  
     login_id = "3006316"
     password = "Sutada53"
 
-    open_browser(driver)
+    driver = open_browser()
+    
+    if not driver:
+        print("❌ ブラウザの起動に失敗しました")
+        return
 
     try:
         login_gaikaex(driver, login_id, password)
@@ -356,11 +362,11 @@ def main():
             # operate_realtime_order_fast(driver, "USDJPY", 20000, "sell", execute_order=True)  # 高速版を使用
             
             # IFO注文の実行例 
-            operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
+            #operate_ifo_order(driver, "USDJPY", 10000, "buy", "limit", 151.50, 153.00, 149.00)
             
-            # IFO注文実行後は最終確認処理をスキップ
-            print("✅ IFO注文処理が完了しました")
-
+            #注文訂正画面への移動と情報取得のテスト
+            quick_navigate_to_order_correction(driver)
+   
 
         else:
             print("❌ 新規注文画面への移動に失敗しました")
@@ -384,7 +390,17 @@ def main():
         print(f"❌ エラー: {e}")
         print('🏁 プログラムを終了します')
     finally:
+        # ブラウザを閉じる
+        try:
+            if driver:
+                driver.quit()
+                print("✅ ブラウザを正常に終了しました")
+        except Exception as e:
+            print(f"⚠️  ブラウザ終了エラー: {e}")
+        
         # グローバル変数をクリア
+        driver = None
+        global global_driver
         global_driver = None
         print("🏁 プログラム終了")
 

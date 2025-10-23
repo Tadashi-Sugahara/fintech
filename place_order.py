@@ -2297,9 +2297,9 @@ def quick_navigate_to_order_correction(driver):
         time.sleep(0.1)
         
         # 2. 注文訂正画面の情報を表示
-        get_order_correction_info(driver)
+        #get_order_correction_info(driver)
         
-        print("✅ 注文訂正画面への移動と情報表示が完了しました")
+        #print("✅ 注文訂正画面への移動と情報表示が完了しました")
         return True
         
     except Exception as e:
