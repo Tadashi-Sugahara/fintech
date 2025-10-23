@@ -114,7 +114,6 @@ def navigate_to_order_type(driver, order_type="realtime"):
         except Exception:
             pass
 
-
 def get_order_frame_info(driver):
     """
     新規注文画面のフレーム情報を取得・表示する関数

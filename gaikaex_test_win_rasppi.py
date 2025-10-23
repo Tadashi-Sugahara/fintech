@@ -442,9 +442,7 @@ def main():
         login_gaikaex(driver, login_id, password)
         # ログイン後の処理
         print('ログイン完了。')
-        
-
-
+    
         # ページ情報を表示（デバッグ用）
         get_page_source_info(driver)
         
@@ -504,8 +502,6 @@ def main():
         # グローバル変数をクリア
         global_driver = None
         print("🏁 プログラム終了")
-
-
 
 if __name__ == "__main__":
     main()
