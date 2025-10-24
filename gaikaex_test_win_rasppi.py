@@ -279,8 +279,8 @@ def open_browser():
             
             # ウィンドウサイズ確認・調整
             current_size = driver.get_window_size()
-            if current_size['width'] != 1920 or current_size['height'] != 1080:
-                driver.set_window_size(1920, 1080)
+            if current_size['width'] != 1280 or current_size['height'] != 1024:
+                driver.set_window_size(1280, 1024)
                 time.sleep(1)
             
             # タイムアウト設定（安定性向上）
