@@ -28,8 +28,8 @@ from place_order import (
     quick_navigate_to_order_correction_ultra_fast,
     get_order_numbers_with_links,
     open_order_number_links_sequentially,
-    process_order_correction_by_pattern_single
-
+    process_order_correction_by_pattern_single,
+    quick_close_all_positions
 )
 
 from monitoring_rates import monitor_usdjpy_rate
