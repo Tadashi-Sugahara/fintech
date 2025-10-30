@@ -74,7 +74,7 @@ def analyze_chart(image_path, analysis_prompt):
                     ]
                 }
             ],
-            max_tokens=1000
+            max_completion_tokens=1000
         )
         # 応答を取得
         reply = response.choices[0].message.content
