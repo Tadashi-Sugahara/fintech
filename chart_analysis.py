@@ -3,6 +3,8 @@ import os
 import base64
 from dotenv import load_dotenv
 
+model_name = "gpt-4.1-nano"
+
 # .envファイルから環境変数を読み込み
 load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
@@ -54,7 +56,7 @@ def analyze_chart(image_path, analysis_prompt):
 
         # ChatGPT APIを呼び出す（Vision APIを使用）
         response = client.chat.completions.create(
-            model="gpt-4o",  # gpt-4oを使用（画像解析対応）
+            model = model_name,  
             messages=[
                 {"role": "system", "content": role_content},
                 {
@@ -73,7 +75,7 @@ def analyze_chart(image_path, analysis_prompt):
                     ]
                 }
             ],
-            max_tokens=1000
+            max_completion_tokens=1000
         )
         # 応答を取得
         reply = response.choices[0].message.content
@@ -98,6 +100,12 @@ if __name__ == "__main__":
     with open(chart_image_path, "rb") as image_file:
         image_data = base64.b64encode(image_file.read()).decode('utf-8')
 
+    # ロール設定を読み込み
+    role_content = load_role_from_file()
+    
+    # チャット履歴を初期化
+    messages = [{"role": "system", "content": role_content}]
+
     # チャットループ（プロンプトのみ）
     while True:
         prompt = input("\n分析のプロンプトを入力してください（終了するには「終了」と入力）: ").strip()
@@ -120,9 +128,9 @@ if __name__ == "__main__":
         # API呼び出し
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=model_name,
                 messages=messages,
-                max_tokens=1000
+                max_completion_tokens=1000
             )
             reply = response.choices[0].message.content
             print("\n=== チャート分析結果 ===")
