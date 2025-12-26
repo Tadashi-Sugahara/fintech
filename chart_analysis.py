@@ -3,6 +3,8 @@ import os
 import base64
 from dotenv import load_dotenv
 
+model_name = "gpt-4.1-nano"
+
 # .envファイルから環境変数を読み込み
 load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
@@ -36,17 +38,56 @@ def get_image_mime_type(file_path):
     else:
         return 'image/png'  # デフォルト
 
+def analyze_chart(image_path, analysis_prompt):
+    try:
+        # ロール設定を読み込み
+        role_content = load_role_from_file()
+        
+        # 画像の存在確認
+        if not os.path.exists(image_path):
+            return f"エラー: 画像ファイルが見つかりません: {image_path}"
+        
+        # 画像のMIMEタイプを取得
+        mime_type = get_image_mime_type(image_path)
+        
+        # 画像をbase64エンコードで読み込み
+        with open(image_path, "rb") as image_file:
+            image_data = base64.b64encode(image_file.read()).decode('utf-8')
+
+        # ChatGPT APIを呼び出す（Vision APIを使用）
+        response = client.chat.completions.create(
+            model = model_name,  
+            messages=[
+                {"role": "system", "content": role_content},
+                {
+                    "role": "user", 
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": analysis_prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{image_data}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_completion_tokens=1000
+        )
+        # 応答を取得
+        reply = response.choices[0].message.content
+        return reply
+    except Exception as e:
+        return f"エラーが発生しました: {e}"
+    
 if __name__ == "__main__":
-    print("=== チャート分析AI（チャット形式）===")
-
-    # ロール設定を読み込み
-    role_content = load_role_from_file()
-
-    # 会話履歴を保持するリスト
-    messages = [{"role": "system", "content": role_content}]
-
-    # 初回のみ画像入力
-    chart_image_path = input("\n分析したいチャート画像のパスを入力してください: ").strip()
+    print("=== チャート分析AI ===")
+    
+    # 使用するファイルのパス設定
+    chart_image_path = input("分析したいチャート画像のパスを入力してください: ").strip()
     if not chart_image_path:
         chart_image_path = "./chart_image.png"
         print(f"デフォルトパスを使用します: {chart_image_path}")
@@ -58,6 +99,12 @@ if __name__ == "__main__":
     mime_type = get_image_mime_type(chart_image_path)
     with open(chart_image_path, "rb") as image_file:
         image_data = base64.b64encode(image_file.read()).decode('utf-8')
+
+    # ロール設定を読み込み
+    role_content = load_role_from_file()
+    
+    # チャット履歴を初期化
+    messages = [{"role": "system", "content": role_content}]
 
     # チャットループ（プロンプトのみ）
     while True:
@@ -81,9 +128,9 @@ if __name__ == "__main__":
         # API呼び出し
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=model_name,
                 messages=messages,
-                max_tokens=1000
+                max_completion_tokens=1000
             )
             reply = response.choices[0].message.content
             print("\n=== チャート分析結果 ===")
